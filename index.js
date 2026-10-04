@@ -2,12 +2,24 @@ const { Client, GatewayIntentBits } = require('discord.js');
 const { joinVoiceChannel } = require('@discordjs/voice');
 const express = require('express');
 
-// Cria um mini site para a hospedagem não deixar o bot dormir
-const app = express();
-app.get('/', (req, res) => res.send('Online'));
-app.listen(3000);
+// ==============================
+// MINI SITE PARA O RENDER
+// ==============================
 
-// Configura as permissões básicas do robô
+const app = express();
+
+app.get('/', (req, res) => {
+    res.send('Online');
+});
+
+app.listen(3000, () => {
+    console.log('Servidor web online na porta 3000');
+});
+
+// ==============================
+// CONFIGURAÇÃO DO BOT
+// ==============================
+
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -15,34 +27,82 @@ const client = new Client({
     ]
 });
 
-// CONFIGURAÇÃO: COLOQUE SEUS DADOS ENTRE AS ASPAS
+// ==============================
+// DADOS DO BOT
+// ==============================
+
 const TOKEN = process.env.DISCORD_TOKEN;
+
 const CANAL_VOZ_ID = '1540757131144208444';
 const SERVIDOR_ID = '920817412050403399';
 
-// Executa assim que o bot liga na internet
-client.once('ready', () => {
-    // Ativa o status roxo de transmissão oficial
+// ==============================
+// QUANDO O BOT ESTIVER PRONTO
+// ==============================
+
+client.once('clientReady', async () => {
+
+    console.log(`Bot conectado como ${client.user.tag}`);
+
+    // ==============================
+    // STATUS DE TRANSMISSÃO
+    // ==============================
+
     client.user.setPresence({
-        activities: [{ 
-            name: 'Ao Vivo', // Texto ao lado da bolinha roxa
-            type: 1, // Tipo 1 ativa o modo Transmitindo
-            url: 'https://twitch.tv' // Link necessário para a transmissão funcionar
+        activities: [{
+            name: 'Ao Vivo',
+            type: 1,
+            url: 'https://www.twitch.tv/'
         }],
         status: 'online'
     });
 
+    console.log('Status de transmissão ativado.');
+
+    // ==============================
+    // ENTRAR AUTOMATICAMENTE NA CALL
+    // ==============================
+
     try {
-        // Conecta na sua call e fica desmutado e escutando
+
+        const guild = await client.guilds.fetch(SERVIDOR_ID);
+
+        console.log(`Servidor encontrado: ${guild.name}`);
+
+        const channel = await guild.channels.fetch(CANAL_VOZ_ID);
+
+        if (!channel) {
+            console.error('Canal de voz não encontrado.');
+            return;
+        }
+
+        if (!channel.isVoiceBased()) {
+            console.error('O ID informado não pertence a um canal de voz.');
+            return;
+        }
+
+        console.log(`Canal encontrado: ${channel.name}`);
+
         joinVoiceChannel({
-            channelId: CANAL_VOZ_ID,
-            guildId: SERVIDOR_ID,
-            adapterCreator: client.guilds.cache.get(SERVIDOR_ID).voiceAdapterCreator,
-            selfMute: false, // false = Microfone verde
-            selfDeaf: false  // false = Fone verde
+            channelId: channel.id,
+            guildId: guild.id,
+            adapterCreator: guild.voiceAdapterCreator,
+            selfMute: false,
+            selfDeaf: false
         });
-    } catch (e) {}
+
+        console.log('Bot entrou na call.');
+
+    } catch (error) {
+
+        console.error('ERRO AO ENTRAR NA CALL:');
+        console.error(error);
+
+    }
 });
 
-// Liga o bot usando a sua chave secreta (Token)
+// ==============================
+// LOGIN DO BOT
+// ==============================
+
 client.login(TOKEN);
