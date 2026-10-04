@@ -52,7 +52,7 @@ client.once('clientReady', async () => {
         activities: [{
             name: 'Ao Vivo',
             type: 1,
-            url: 'https://www.twitch.tv/'
+            url: 'https://www.twitch.tv/twitch'
         }],
         status: 'online'
     });
