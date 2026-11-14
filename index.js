@@ -22,7 +22,8 @@ const {
   TextInputStyle,
   ChannelSelectMenuBuilder,
   ChannelType,
-  StringSelectMenuBuilder
+  StringSelectMenuBuilder,
+  RoleSelectMenuBuilder
 } = require('discord.js');
 
 const { joinVoiceChannel } = require('@discordjs/voice');
@@ -43,7 +44,7 @@ const SERVIDOR_ID = '920817412050403399';
 const CANAL_VOZ_ID = '1540757131144208444';
 const PREFIXO = '!';
 const COR_PADRAO = 0xB58AD9;
-const MAX_ELEMENTOS = 6;
+const MAX_ELEMENTOS = Infinity;
 const PREFIXO_ID = 'painel_editor_';
 
 if (!TOKEN) {
@@ -56,7 +57,8 @@ const client = new Client({
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildVoiceStates,
     GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent
+    GatewayIntentBits.MessageContent,
+    GatewayIntentBits.GuildMembers
   ]
 });
 
@@ -133,17 +135,23 @@ function buildPublishedContainer(session) {
     .setAccentColor(session.color);
 
   for (const item of session.elements) {
+
     if (item.type === 'title' || item.type === 'text') {
+
       container.addTextDisplayComponents(
         new TextDisplayBuilder().setContent(item.content)
       );
+
     } else if (item.type === 'banner') {
+
       container.addMediaGalleryComponents(
         new MediaGalleryBuilder().addItems({
           media: { url: item.url }
         })
       );
+
     } else if (item.type === 'thumbnail') {
+
       container.addSectionComponents(
         new SectionBuilder()
           .addTextDisplayComponents(
@@ -155,11 +163,34 @@ function buildPublishedContainer(session) {
             })
           )
       );
+
     } else if (item.type === 'separator') {
+
       container.addSeparatorComponents(
         new SeparatorBuilder()
           .setDivider(true)
           .setSpacing(SeparatorSpacingSize.Large)
+      );
+
+    } else if (item.type === 'role') {
+
+      const button = new ButtonBuilder()
+        .setCustomId(`role_toggle_${item.roleId}`)
+        .setLabel('Selecionar')
+        .setStyle(ButtonStyle.Secondary);
+
+      if (item.emoji) {
+        button.setEmoji(item.emoji);
+      }
+
+      container.addSectionComponents(
+        new SectionBuilder()
+          .addTextDisplayComponents(
+            new TextDisplayBuilder().setContent(
+              `### ${item.name}\n${item.description || 'Selecione abaixo para receber este cargo.'}`
+            )
+          )
+          .setButtonAccessory(button)
       );
     }
   }
@@ -170,13 +201,21 @@ function buildPublishedContainer(session) {
 function buildEditor(user, session) {
   const channelLabel = session.channelId
     ? `<#${session.channelId}>`
-    : '*Nenhum canal selecionado*';
+    : 'Nenhum canal selecionado';
 
   const list = session.elements.length
-    ? session.elements.map((element, index) =>
-        `${index === session.selected ? '🔹' : '▫️'} **${index + 1}. ${element.type.toUpperCase()}**`
-      ).join('\n')
-    : '*Seu painel ainda está vazio. Adicione o primeiro elemento.*';
+    ? session.elements.map((element, index) => {
+        let description = '';
+
+        if (element.type === 'role') {
+          description = ` — ${element.name}`;
+        } else if (element.type === 'title' || element.type === 'text') {
+          description = ` — ${element.content.slice(0, 40)}`;
+        }
+
+        return `${index === session.selected ? '🔹' : '▫️'} **${index + 1}. ${element.type.toUpperCase()}${description}**`;
+      }).join('\n')
+    : 'Seu painel ainda está vazio. Adicione o primeiro elemento.';
 
   const container = new ContainerBuilder()
     .setAccentColor(session.color)
@@ -185,14 +224,14 @@ function buildEditor(user, session) {
         `# ✦ CRIADOR DE PAINÉIS\n` +
         `*Editor de mensagens personalizadas*\n\n` +
         `**Editando:** ${user}\n` +
-        `**Elementos:** ${session.elements.length}/${MAX_ELEMENTOS}\n` +
+        `**Elementos:** ${session.elements.length}\n` +
         `**Canal de publicação:** ${channelLabel}\n` +
         `**Cor:** #${session.color.toString(16).padStart(6, '0').toUpperCase()}`
       )
     )
     .addTextDisplayComponents(
       new TextDisplayBuilder().setContent(
-        '### Adicionar conteúdo\nUse os botões para inserir textos e imagens. As alterações ficam privadas até publicar.'
+        '### Adicionar conteúdo\nUse os botões para inserir textos, imagens e cargos. As alterações ficam privadas até publicar.'
       )
     )
     .addActionRowComponents(
@@ -206,6 +245,7 @@ function buildEditor(user, session) {
     )
     .addActionRowComponents(
       new ActionRowBuilder().addComponents(
+        makeButton('ed_roles', 'Cargos', ButtonStyle.Primary),
         makeButton('ed_color', 'Cor'),
         makeButton('ed_refresh', 'Atualizar'),
         makeButton('ed_preview', 'Prévia', ButtonStyle.Success),
@@ -222,8 +262,6 @@ function buildEditor(user, session) {
         `### Estrutura do painel\n${list}`
       )
     )
-
-    // CORREÇÃO: menu de canal dentro de uma ActionRowBuilder
     .addActionRowComponents(
       new ActionRowBuilder().addComponents(
         new ChannelSelectMenuBuilder()
@@ -239,10 +277,11 @@ function buildEditor(user, session) {
     );
 
   if (session.elements.length) {
-    const options = session.elements.map((element, index) => ({
+    const options = session.elements.slice(0, 25).map((element, index) => ({
       label: `${index + 1}. ${element.type}`,
       value: String(index),
       description: (
+        element.name ||
         element.content ||
         element.url ||
         'Elemento visual'
@@ -275,7 +314,8 @@ async function openPrivateEditor(interaction) {
     color: COR_PADRAO,
     elements: [],
     selected: 0,
-    channelId: null
+    channelId: null,
+    pendingRole: null
   };
 
   sessoes.set(interaction.user.id, session);
@@ -300,6 +340,7 @@ function validImageUrl(value) {
       ['http:', 'https:'].includes(url.protocol) &&
       /\.(png|jpe?g|gif|webp|avif)$/i.test(url.pathname)
     );
+
   } catch {
     return false;
   }
@@ -329,6 +370,7 @@ async function showImageModal(interaction, modalId, title, withText = false) {
   );
 }
 
+// Conexão do bot e entrada na call
 client.once('clientReady', async () => {
   console.log(`Bot conectado como ${client.user.tag}`);
 
@@ -366,14 +408,88 @@ client.once('clientReady', async () => {
     });
 
     console.log('Bot entrou na call.');
+
   } catch (error) {
     console.error('Erro ao entrar na call:', error);
   }
 });
 
+// Alternar cargos dos membros
+async function toggleRole(interaction) {
+  const roleId = interaction.customId.replace('role_toggle_', '');
+  const guild = interaction.guild;
+
+  if (!guild) {
+    return interaction.reply({
+      content: 'Este botão só funciona dentro do servidor.',
+      flags: MessageFlags.Ephemeral
+    });
+  }
+
+  const role = await guild.roles.fetch(roleId).catch(() => null);
+
+  if (!role) {
+    return interaction.reply({
+      content: 'Esse cargo não está mais disponível.',
+      flags: MessageFlags.Ephemeral
+    });
+  }
+
+  const botMember = guild.members.me;
+
+  if (
+    !botMember ||
+    !botMember.permissions.has(PermissionFlagsBits.ManageRoles)
+  ) {
+    return interaction.reply({
+      content: 'Preciso da permissão Gerenciar cargos para realizar essa ação.',
+      flags: MessageFlags.Ephemeral
+    });
+  }
+
+  if (
+    role.managed ||
+    botMember.roles.highest.comparePositionTo(role) <= 0
+  ) {
+    return interaction.reply({
+      content: 'Não consigo gerenciar esse cargo. Verifique a posição dele na hierarquia do servidor.',
+      flags: MessageFlags.Ephemeral
+    });
+  }
+
+  const member = await guild.members.fetch(interaction.user.id);
+
+  try {
+    if (member.roles.cache.has(roleId)) {
+      await member.roles.remove(roleId);
+
+      return interaction.reply({
+        content: `O cargo **${role.name}** foi removido.`,
+        flags: MessageFlags.Ephemeral
+      });
+    }
+
+    await member.roles.add(roleId);
+
+    return interaction.reply({
+      content: `Você recebeu o cargo **${role.name}**!`,
+      flags: MessageFlags.Ephemeral
+    });
+
+  } catch (error) {
+    console.error('Erro ao alterar cargo:', error);
+
+    return interaction.reply({
+      content: 'Não foi possível alterar seu cargo. Verifique minhas permissões.',
+      flags: MessageFlags.Ephemeral
+    });
+  }
+}
+
 // Interações do editor
 client.on('interactionCreate', async interaction => {
   try {
+
     if (
       interaction.isChatInputCommand() &&
       interaction.commandName === 'container'
@@ -381,6 +497,15 @@ client.on('interactionCreate', async interaction => {
       return await openPrivateEditor(interaction);
     }
 
+    // Botões de cargos dos painéis publicados
+    if (
+      interaction.isButton() &&
+      interaction.customId.startsWith('role_toggle_')
+    ) {
+      return await toggleRole(interaction);
+    }
+
+    // Reabrir editor privado
     if (
       interaction.isButton() &&
       interaction.customId.startsWith(PREFIXO_ID)
@@ -401,7 +526,8 @@ client.on('interactionCreate', async interaction => {
     if (
       interaction.isButton() ||
       interaction.isStringSelectMenu() ||
-      interaction.isChannelSelectMenu()
+      interaction.isChannelSelectMenu() ||
+      interaction.isRoleSelectMenu()
     ) {
       const session = sessoes.get(interaction.user.id);
 
@@ -414,6 +540,7 @@ client.on('interactionCreate', async interaction => {
 
       const id = interaction.customId;
 
+      // Título
       if (id === 'ed_title') {
         return interaction.showModal(
           makeTextModal('ed_modal_title', 'Adicionar título', [
@@ -422,6 +549,7 @@ client.on('interactionCreate', async interaction => {
         );
       }
 
+      // Texto
       if (id === 'ed_text') {
         return interaction.showModal(
           makeTextModal('ed_modal_text', 'Adicionar texto', [
@@ -435,6 +563,7 @@ client.on('interactionCreate', async interaction => {
         );
       }
 
+      // Banner
       if (id === 'ed_banner') {
         return showImageModal(
           interaction,
@@ -443,6 +572,7 @@ client.on('interactionCreate', async interaction => {
         );
       }
 
+      // Thumbnail
       if (id === 'ed_thumb') {
         return showImageModal(
           interaction,
@@ -452,6 +582,72 @@ client.on('interactionCreate', async interaction => {
         );
       }
 
+      // Configurar cargos
+      if (id === 'ed_roles') {
+        return interaction.showModal(
+          makeTextModal('ed_modal_role', 'Configurar cargo', [
+            {
+              id: 'role_name',
+              label: 'Nome exibido no painel',
+              placeholder: 'Exemplo: Membro VIP',
+              max: 100
+            },
+            {
+              id: 'role_description',
+              label: 'Descrição abaixo do nome',
+              placeholder: 'Explique o que esse cargo representa.',
+              paragraph: true,
+              max: 500
+            },
+            {
+              id: 'role_emoji',
+              label: 'Emoji do botão (opcional)',
+              placeholder: 'Exemplo: 💜',
+              required: false,
+              max: 100
+            }
+          ])
+        );
+      }
+
+      // Selecionar cargo real do servidor
+      if (id === 'ed_role_select') {
+        const roleId = interaction.values[0];
+        const role = await interaction.guild.roles.fetch(roleId).catch(() => null);
+
+        if (!role) {
+          return interaction.reply({
+            content: 'Não foi possível encontrar esse cargo.',
+            flags: MessageFlags.Ephemeral
+          });
+        }
+
+        const pending = session.pendingRole;
+
+        if (!pending) {
+          return interaction.update({
+            content: 'Configuração de cargo não encontrada. Tente novamente.',
+            components: []
+          });
+        }
+
+        addElement(session, {
+          type: 'role',
+          name: pending.name,
+          description: pending.description,
+          emoji: pending.emoji,
+          roleId: role.id
+        });
+
+        session.pendingRole = null;
+
+        return interaction.update({
+          content: `Cargo **${role.name}** adicionado ao painel! Clique em **Atualizar** no editor para visualizar.`,
+          components: []
+        });
+      }
+
+      // Cor
       if (id === 'ed_color') {
         return interaction.showModal(
           makeTextModal('ed_modal_color', 'Cor do painel', [
@@ -465,10 +661,12 @@ client.on('interactionCreate', async interaction => {
         );
       }
 
+      // Atualizar
       if (id === 'ed_refresh') {
         return refreshEditor(interaction, session);
       }
 
+      // Prévia
       if (id === 'ed_preview') {
         try {
           return interaction.reply({
@@ -483,6 +681,7 @@ client.on('interactionCreate', async interaction => {
         }
       }
 
+      // Publicar
       if (id === 'ed_publish') {
         if (!session.channelId) {
           return interaction.reply({
@@ -532,195 +731,29 @@ client.on('interactionCreate', async interaction => {
         });
       }
 
+      // Canal
       if (id === 'ed_channel') {
         session.channelId = interaction.values[0];
         return refreshEditor(interaction, session);
       }
 
+      // Separador
       if (id === 'ed_separator') {
-        if (!addElement(session, { type: 'separator' })) {
-          return interaction.reply({
-            content: `Limite de ${MAX_ELEMENTOS} elementos nesta versão.`,
-            flags: MessageFlags.Ephemeral
-          });
-        }
-
+        addElement(session, { type: 'separator' });
         return refreshEditor(interaction, session);
       }
 
+      // Selecionar elemento
       if (id === 'ed_select') {
         session.selected = Number(interaction.values[0]);
         return refreshEditor(interaction, session);
       }
 
+      // Organizar elementos
       if (id === 'ed_up' || id === 'ed_down') {
         const index = session.selected;
         const target = id === 'ed_up' ? index - 1 : index + 1;
 
         if (target >= 0 && target < session.elements.length) {
           [
-            session.elements[index],
-            session.elements[target]
-          ] = [
-            session.elements[target],
-            session.elements[index]
-          ];
-
-          session.selected = target;
-        }
-
-        return refreshEditor(interaction, session);
-      }
-
-      if (id === 'ed_delete') {
-        if (session.elements.length) {
-          session.elements.splice(session.selected, 1);
-        }
-
-        session.selected = Math.max(
-          0,
-          Math.min(session.selected, session.elements.length - 1)
-        );
-
-        return refreshEditor(interaction, session);
-      }
-    }
-
-    // Envio dos formulários
-    if (interaction.isModalSubmit()) {
-      const session = sessoes.get(interaction.user.id);
-
-      if (!session) {
-        return interaction.reply({
-          content: 'Sua sessão expirou. Abra /container novamente.',
-          flags: MessageFlags.Ephemeral
-        });
-      }
-
-      const id = interaction.customId;
-
-      if (id === 'ed_modal_title' || id === 'ed_modal_text') {
-        const content = interaction.fields
-          .getTextInputValue('content')
-          .trim();
-
-        if (!content) {
-          return interaction.reply({
-            content: 'O conteúdo não pode ficar vazio.',
-            flags: MessageFlags.Ephemeral
-          });
-        }
-
-        if (!addElement(session, {
-          type: id === 'ed_modal_title' ? 'title' : 'text',
-          content: id === 'ed_modal_title' ? `# ${content}` : content
-        })) {
-          return interaction.reply({
-            content: `Limite de ${MAX_ELEMENTOS} elementos nesta versão.`,
-            flags: MessageFlags.Ephemeral
-          });
-        }
-      } else if (id === 'ed_modal_color') {
-        const value = interaction.fields
-          .getTextInputValue('color')
-          .replace('#', '')
-          .trim();
-
-        if (!/^[0-9a-fA-F]{6}$/.test(value)) {
-          return interaction.reply({
-            content: 'Cor inválida. Exemplo: B58AD9.',
-            flags: MessageFlags.Ephemeral
-          });
-        }
-
-        session.color = parseInt(value, 16);
-      } else if (
-        id === 'ed_modal_banner' ||
-        id === 'ed_modal_thumbnail'
-      ) {
-        if (session.elements.length >= MAX_ELEMENTOS) {
-          return interaction.reply({
-            content: `Limite de ${MAX_ELEMENTOS} elementos nesta versão.`,
-            flags: MessageFlags.Ephemeral
-          });
-        }
-
-        const url = interaction.fields
-          .getTextInputValue('image_url')
-          .trim();
-
-        if (!validImageUrl(url)) {
-          return interaction.reply({
-            content: 'Informe um link direto válido para uma imagem (PNG, JPG, GIF ou WEBP).',
-            flags: MessageFlags.Ephemeral
-          });
-        }
-
-        const element = {
-          type: id === 'ed_modal_banner' ? 'banner' : 'thumbnail',
-          url
-        };
-
-        if (id === 'ed_modal_thumbnail') {
-          element.text = interaction.fields
-            .getTextInputValue('image_text')
-            .trim();
-        }
-
-        addElement(session, element);
-      } else {
-        return;
-      }
-
-      return interaction.reply({
-        content: 'Alteração salva! Clique em **Atualizar** no editor para ver a estrutura atualizada.',
-        flags: MessageFlags.Ephemeral
-      });
-    }
-  } catch (error) {
-    console.error('Erro ao processar interação:', error);
-
-    if (
-      interaction.isRepliable() &&
-      !interaction.replied &&
-      !interaction.deferred
-    ) {
-      await interaction.reply({
-        content: 'Ocorreu um erro. Confira os logs do Render.',
-        flags: MessageFlags.Ephemeral
-      }).catch(() => {});
-    }
-  }
-});
-
-// Comando tradicional !container
-client.on('messageCreate', async message => {
-  if (message.author.bot || !message.guild) return;
-
-  if (message.content.trim().toLowerCase() !== `${PREFIXO}container`) {
-    return;
-  }
-
-  if (!message.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
-    await message.delete().catch(() => {});
-    return;
-  }
-
-  await message.delete().catch(() => {});
-
-  const opener = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId(`${PREFIXO_ID}${message.author.id}`)
-      .setLabel('Abrir editor de painéis')
-      .setStyle(ButtonStyle.Primary)
-  );
-
-  const sent = await message.channel.send({
-    content: `${message.author}, clique abaixo para abrir seu editor privado.`,
-    components: [opener]
-  });
-
-  setTimeout(() => sent.delete().catch(() => {}), 60000);
-});
-
-client.login(TOKEN);
+            session.elem
