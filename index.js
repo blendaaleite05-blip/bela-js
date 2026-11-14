@@ -40,6 +40,7 @@ app.listen(process.env.PORT || 3000, () => {
 
 // Configurações
 const TOKEN = process.env.DISCORD_TOKEN;
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const SERVIDOR_ID = '920817412050403399';
 const CANAL_VOZ_ID = '1540757131144208444';
 const PREFIXO = '!';
