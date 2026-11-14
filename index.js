@@ -204,53 +204,145 @@ function buildEditor(user, session) {
       makeButton('ed_delete', 'Excluir', ButtonStyle.Danger)
     ));
   }
-
-  return container;
+async function refreshEditor(interaction, session) {
+  await interaction.update({
+    components: [buildEditor(interaction.user, session)]
+  });
 }
 
-async function openPrivateEditor(interaction) {
-  const session = {
-    color: COR_PADRAO,
-    elements: [],
-    selected: 0,
-    channelId: null
-  };
-  sessoes.set(interaction.user.id, session);
-  await interaction.reply({
-    components: [buildEditor(interaction.user, session)],
-    flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral
-  });
+function validImageUrl(value) {
+  try {
+    const url = new URL(value);
+    return ['http:', 'https:'].includes(url.protocol) &&
+      /\.(png|jpe?g|gif|webp|avif)$/i.test(url.pathname);
+  } catch {
+    return false;
   }
+}
+
+async function showImageModal(interaction, modalId, title) {
+  const modal = new ModalBuilder().setCustomId(modalId).setTitle(title);
+  const upload = new FileUploadBuilder()
+    .setCustomId('image_file')
+    .setMinValues(0)
+    .setMaxValues(1)
+    .setRequired(false)
+    .setFileTypes('image');
+  modal.addLabelComponents(
+    new LabelBuilder()
+      .setLabel('Enviar imagem')
+      .setDescription('Anexe uma imagem ou deixe vazio para usar um link.')
+      .setFileUploadComponent(upload)
+  );
+  modal.addComponents(new ActionRowBuilder().addComponents(
+    new TextInputBuilder()
+      .setCustomId('image_url')
+      .setLabel('Ou cole o link direto da imagem')
+      .setStyle(TextInputStyle.Short)
+      .setRequired(false)
+      .setMaxLength(1000)
+      .setPlaceholder('https://...')
+  ));
+  if (modalId === 'ed_modal_thumbnail') {
+    modal.addComponents(new ActionRowBuilder().addComponents(
+      new TextInputBuilder()
+        .setCustomId('image_text')
+        .setLabel('Texto ao lado da thumbnail')
+        .setStyle(TextInputStyle.Short)
+        .setRequired(false)
+        .setMaxLength(500)
+    ));
+  }
+  await interaction.showModal(modal);
+}
+
+client.once('clientReady', async () => {
+  console.log(`Bot conectado como ${client.user.tag}`);
+  client.user.setPresence({
+    activities: [{ name: 'Ao Vivo', type: 1, url: 'https://www.twitch.tv/twitch' }],
+    status: 'online'
+  });
+  try {
+    await registrarComandos();
+  } catch (error) {
+    console.error('Erro ao registrar comandos:', error);
+  }
+  try {
+    const guild = await client.guilds.fetch(SERVIDOR_ID);
+    const voiceChannel = await guild.channels.fetch(CANAL_VOZ_ID);
+    if (!voiceChannel?.isVoiceBased()) throw new Error('Canal de voz inválido.');
+    joinVoiceChannel({
+      channelId: voiceChannel.id,
+      guildId: guild.id,
+      adapterCreator: guild.voiceAdapterCreator,
+      selfMute: false,
+      selfDeaf: false
+    });
+    console.log('Bot entrou na call.');
+  } catch (error) {
+    console.error('Erro ao entrar na call:', error);
+  }
+});
+
+client.on('interactionCreate', async interaction => {
+  try {
+    if (interaction.isChatInputCommand() && interaction.commandName === 'container') {
+      return await openPrivateEditor(interaction);
+    }
+
+    if (interaction.isButton() && interaction.customId.startsWith(PREFIXO_ID)) {
+      const ownerId = interaction.customId.slice(PREFIXO_ID.length);
+      if (interaction.user.id !== ownerId) {
+        return interaction.reply({ content: 'Esse botão pertence a outra pessoa.', flags: MessageFlags.Ephemeral });
+      }
+      await interaction.message.delete().catch(() => {});
+      return openPrivateEditor(interaction);
+    }
+
+    if (interaction.isButton() || interaction.isStringSelectMenu() || interaction.isChannelSelectMenu()) {
+      const session = sessoes.get(interaction.user.id);
+      if (!session) {
+        return interaction.reply({ content: 'Sua sessão expirou. Abra /container novamente.', flags: MessageFlags.Ephemeral });
+      }
+      const id = interaction.customId;
+
+      if (id === 'ed_title') return interaction.showModal(makeTextModal('ed_modal_title', 'Adicionar título', [
+        { id: 'content', label: 'Título', max: 200 }
+      ]));
+      if (id === 'ed_text') return interaction.showModal(makeTextModal('ed_modal_text', 'Adicionar texto', [
+        { id: 'content', label: 'Descrição', paragraph: true, max: 4000 }
+      ]));
+      if (id === 'ed_banner') return showImageModal(interaction, 'ed_modal_banner', 'Adicionar banner');
+      if (id === 'ed_thumb') return showImageModal(interaction, 'ed_modal_thumbnail', 'Adicionar thumbnail');
+      if (id === 'ed_color') return interaction.showModal(makeTextModal('ed_modal_color', 'Cor do painel', [
+        { id: 'color', label: 'Código hexadecimal sem #', placeholder: 'B58AD9', max: 6 }
       ]));
       if (id === 'ed_refresh') return refreshEditor(interaction, session);
       if (id === 'ed_preview') {
-        if (!session.elements.length) {
-          return interaction.reply({ content: 'Adicione algum elemento para visualizar a prévia.', flags: MessageFlags.Ephemeral });
+        try {
+          return interaction.reply({ components: [buildPublishedContainer(session)], flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral });
+        } catch (error) {
+          return interaction.reply({ content: error.message, flags: MessageFlags.Ephemeral });
         }
-        return interaction.reply({
-          components: [buildPublishedContainer(session)],
-          flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral
-        });
       }
-      if (id === 'ed_publish') {
-        if (!session.channelId) {
-          return interaction.reply({ content: 'Selecione um canal antes de publicar.', flags: MessageFlags.Ephemeral });
+            if (id === 'ed_publish') {
+        if (!session.channelId) return interaction.reply({ content: 'Primeiro escolha o canal no campo **Definir canal de publicação**.', flags: MessageFlags.Ephemeral });
+        if (!session.elements.length) return interaction.reply({ content: 'Adicione pelo menos um elemento antes de publicar.', flags: MessageFlags.Ephemeral });
+        const channel = await interaction.guild.channels.fetch(session.channelId).catch(() => null);
+        if (!channel?.isTextBased()) return interaction.reply({ content: 'O canal selecionado não está disponível.', flags: MessageFlags.Ephemeral });
+        const permissions = channel.permissionsFor(client.user);
+        if (!permissions?.has(PermissionFlagsBits.ViewChannel) || !permissions.has(PermissionFlagsBits.SendMessages)) {
+          return interaction.reply({ content: 'Não tenho permissão para ver e enviar mensagens nesse canal.', flags: MessageFlags.Ephemeral });
         }
-        if (!session.elements.length) {
-          return interaction.reply({ content: 'Adicione algum elemento antes de publicar.', flags: MessageFlags.Ephemeral });
-        }
-        const channel = await interaction.guild.channels.fetch(session.channelId);
-        if (!channel || !channel.isTextBased()) {
-          return interaction.reply({ content: 'O canal selecionado não é válido.', flags: MessageFlags.Ephemeral });
-        }
-        await channel.send({
-          components: [buildPublishedContainer(session)],
-          flags: MessageFlags.IsComponentsV2
-        });
-        return interaction.reply({ content: 'Painel publicado com sucesso!', flags: MessageFlags.Ephemeral });
+        await channel.send({ components: [buildPublishedContainer(session)], flags: MessageFlags.IsComponentsV2 });
+        return interaction.reply({ content: `Painel publicado em ${channel}.`, flags: MessageFlags.Ephemeral });
       }
       if (id === 'ed_channel') {
         session.channelId = interaction.values[0];
+        return refreshEditor(interaction, session);
+      }
+      if (id === 'ed_separator') {
+        if (!addElement(session, { type: 'separator' })) return interaction.reply({ content: `Limite de ${MAX_ELEMENTOS} elementos nesta versão.`, flags: MessageFlags.Ephemeral });
         return refreshEditor(interaction, session);
       }
       if (id === 'ed_select') {
@@ -258,17 +350,16 @@ async function openPrivateEditor(interaction) {
         return refreshEditor(interaction, session);
       }
       if (id === 'ed_up' || id === 'ed_down') {
-        const current = session.selected;
-        const next = id === 'ed_up' ? current - 1 : current + 1;
-        if (next >= 0 && next < session.elements.length) {
-          [session.elements[current], session.elements[next]] =
-            [session.elements[next], session.elements[current]];
-          session.selected = next;
+        const index = session.selected;
+        const target = id === 'ed_up' ? index - 1 : index + 1;
+        if (target >= 0 && target < session.elements.length) {
+          [session.elements[index], session.elements[target]] = [session.elements[target], session.elements[index]];
+          session.selected = target;
         }
         return refreshEditor(interaction, session);
       }
       if (id === 'ed_delete') {
-        session.elements.splice(session.selected, 1);
+        if (session.elements.length) session.elements.splice(session.selected, 1);
         session.selected = Math.max(0, Math.min(session.selected, session.elements.length - 1));
         return refreshEditor(interaction, session);
       }
@@ -276,72 +367,63 @@ async function openPrivateEditor(interaction) {
 
     if (interaction.isModalSubmit()) {
       const session = sessoes.get(interaction.user.id);
-      if (!session) {
-        return interaction.reply({ content: 'Sua sessão expirou. Abra /container novamente.', flags: MessageFlags.Ephemeral });
-      }
+      if (!session) return interaction.reply({ content: 'Sua sessão expirou. Abra /container novamente.', flags: MessageFlags.Ephemeral });
       const id = interaction.customId;
 
       if (id === 'ed_modal_title' || id === 'ed_modal_text') {
         const content = interaction.fields.getTextInputValue('content').trim();
-        if (!content) {
-          return interaction.reply({ content: 'O conteúdo não pode ficar vazio.', flags: MessageFlags.Ephemeral });
+        if (!content) return interaction.reply({ content: 'O conteúdo não pode ficar vazio.', flags: MessageFlags.Ephemeral });
+        if (!addElement(session, { type: id === 'ed_modal_title' ? 'title' : 'text', content: id === 'ed_modal_title' ? `# ${content}` : content })) {
+          return interaction.reply({ content: `Limite de ${MAX_ELEMENTOS} elementos nesta versão.`, flags: MessageFlags.Ephemeral });
         }
-        if (!addElement(session, {
-          type: id === 'ed_modal_title' ? 'title' : 'text',
-          content: id === 'ed_modal_title' ? `## ${content}` : content
-        })) {
-          return interaction.reply({ content: `O limite é de ${MAX_ELEMENTOS} elementos.`, flags: MessageFlags.Ephemeral });
+      } else if (id === 'ed_modal_color') {
+        const value = interaction.fields.getTextInputValue('color').replace('#', '').trim();
+        if (!/^[0-9a-fA-F]{6}$/.test(value)) return interaction.reply({ content: 'Cor inválida. Exemplo: B58AD9.', flags: MessageFlags.Ephemeral });
+        session.color = parseInt(value, 16);
+      } else if (id === 'ed_modal_banner' || id === 'ed_modal_thumbnail') {
+        if (session.elements.length >= MAX_ELEMENTOS) return interaction.reply({ content: `Limite de ${MAX_ELEMENTOS} elementos nesta versão.`, flags: MessageFlags.Ephemeral });
+        const url = interaction.fields.getTextInputValue('image_url').trim();
+        const files = interaction.fields.getUploadedFiles('image_file');
+        const uploaded = files?.first();
+        const imageUrl = uploaded?.url || url;
+        if (!imageUrl || (!uploaded && !validImageUrl(imageUrl))) {
+          return interaction.reply({ content: 'Anexe uma imagem ou informe um link direto válido.', flags: MessageFlags.Ephemeral });
         }
-        await interaction.reply({ content: 'Elemento adicionado ao painel.', flags: MessageFlags.Ephemeral });
-        const editorMessage = interaction.message;
-        if (editorMessage) {
-          await editorMessage.edit({ components: [buildEditor(interaction.user, session)] }).catch(() => {});
-        }
+        const element = { type: id === 'ed_modal_banner' ? 'banner' : 'thumbnail', url: imageUrl };
+        if (id === 'ed_modal_thumbnail') element.text = interaction.fields.getTextInputValue('image_text').trim();
+        addElement(session, element);
+      } else {
         return;
       }
-
-      if (id === 'ed_modal_color') {
-        const colorText = interaction.fields.getTextInputValue('color').trim().replace('#', '');
-        if (!/^[0-9a-fA-F]{6}$/.test(colorText)) {
-          return interaction.reply({ content: 'Use um código hexadecimal de 6 caracteres, como B58AD9.', flags: MessageFlags.Ephemeral });
-        }
-        session.color = parseInt(colorText, 16);
-        await interaction.reply({ content: 'Cor atualizada!', flags: MessageFlags.Ephemeral });
-        return;
-      }
-
-      if (id === 'ed_modal_banner' || id === 'ed_modal_thumbnail') {
-        const url = interaction.fields.getTextInputValue('image_url')?.trim();
-        const uploaded = interaction.fields.getUploadedFiles('image_file');
-        let imageUrl = url;
-        if (uploaded?.size) {
-          const attachment = uploaded.first();
-          imageUrl = attachment.url;
-        }
-        if (!imageUrl || !validImageUrl(imageUrl)) {
-          return interaction.reply({ content: 'Envie uma imagem ou informe um link direto válido (PNG, JPG, GIF ou WEBP).', flags: MessageFlags.Ephemeral });
-        }
-        const element = id === 'ed_modal_banner'
-          ? { type: 'banner', url: imageUrl }
-          : {
-              type: 'thumbnail',
-              url: imageUrl,
-              text: interaction.fields.getTextInputValue('image_text')?.trim() || 'Imagem'
-            };
-        if (!addElement(session, element)) {
-          return interaction.reply({ content: `O limite é de ${MAX_ELEMENTOS} elementos.`, flags: MessageFlags.Ephemeral });
-        }
-        await interaction.reply({ content: 'Imagem adicionada ao painel.', flags: MessageFlags.Ephemeral });
-        return;
-      }
+      return interaction.reply({ content: 'Alteração salva! Volte ao editor e continue montando seu painel.', flags: MessageFlags.Ephemeral });
     }
   } catch (error) {
     console.error('Erro ao processar interação:', error);
-    const response = { content: 'Ocorreu um erro ao processar essa ação. Tente novamente.', flags: MessageFlags.Ephemeral };
-    if (interaction.replied || interaction.deferred) {
-      await interaction.followUp(response).catch(() => {});
-    } else {
-      await interaction.reply(response).catch(() => {});
+    if (interaction.isRepliable() && !interaction.replied && !interaction.deferred) {
+      await interaction.reply({ content: 'Ocorreu um erro. Confira os logs do Render.', flags: MessageFlags.Ephemeral }).catch(() => {});
     }
   }
 });
+
+// Comando tradicional: a mensagem é apagada e o bot deixa um botão temporário.
+// O clique nesse botão abre o editor em ephemeral dentro do servidor.
+client.on('messageCreate', async message => {
+  if (message.author.bot || !message.guild) return;
+  if (message.content.trim().toLowerCase() !== `${PREFIXO}container`) return;
+  if (!message.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
+    await message.delete().catch(() => {});
+    return;
+  }
+  await message.delete().catch(() => {});
+  const opener = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId(`${PREFIXO_ID}${message.author.id}`).setLabel('Abrir editor privado').setStyle(ButtonStyle.Primary)
+  );
+  const prompt = await message.channel.send({
+    content: 'Clique abaixo para abrir seu editor privado.',
+    components: [opener]
+  });
+  setTimeout(() => prompt.delete().catch(() => {}), 60000);
+});
+
+
+client.login(TOKEN);
