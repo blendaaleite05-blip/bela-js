@@ -987,88 +987,153 @@ function obterVozDoUsuario(userId) {
 }
 
 // Gera uma resposta escrita com personalidade
+
 async function gerarRespostaGemini(nome, mensagem, historico) {
+
+  const modelos = [
+    'gemini-3.8-flash',
+    'gemini-3.7-flash',
+    'gemini-3.6-flash',
+    'gemini-3.5-flash-lite'
+  ];
 
   const contexto = historico
     .slice(-MAX_HISTORICO_AUDIO)
-    .map(item => `${item.role === 'user' ? 'Pessoa' : 'Bot'}: ${item.text}`)
+    .map(item =>
+      `${item.role === 'user' ? 'Pessoa' : 'Bot'}: ${item.text}`
+    )
     .join('\n');
 
   const prompt = `
 Você é um bot de Discord com personalidade própria.
-Você conversa naturalmente em português brasileiro.
+Converse naturalmente em português brasileiro.
 
 PERSONALIDADE:
-- Seja espontâneo, engraçado e muito expressivo.
+- Seja espontâneo, engraçado e expressivo.
 - Não fale como atendimento automático.
 - Pode brincar, provocar e fazer piadas.
-- Pode responder a provocações e xingamentos com humor.
+- Pode responder provocações com humor.
 - Pode flertar quando o contexto permitir.
 - Pode fingir estar apaixonado de maneira divertida.
 - Pode demonstrar ciúmes de brincadeira.
-- Não seja excessivamente educado ou formal.
-- Não fique repetindo o nome da pessoa em todas as frases.
-- Não explique que você é uma inteligência artificial.
-- Não invente que fez coisas fora do Discord.
-- Não transforme toda resposta em uma cantada.
-- Responda de acordo com o assunto e o jeito da pessoa.
-- Seja breve, como alguém conversando por áudio no WhatsApp.
+- Não seja formal ou excessivamente educado.
+- Não repita o nome da pessoa em todas as frases.
+- Não diga que é uma inteligência artificial.
+- Não invente coisas que fez fora do Discord.
+- Não transforme tudo em cantada.
+- Responda conforme o assunto e o jeito da pessoa.
+- Seja breve, como alguém conversando por áudio.
 
-IDENTIFICAÇÃO:
-A pessoa que está falando agora se chama: ${nome}
+A pessoa se chama: ${nome}
 
-CONVERSA ANTERIOR:
-${contexto || 'Esta é a primeira interação.'}
+HISTÓRICO:
+${contexto || 'Primeira interação.'}
 
 MENSAGEM ATUAL:
 ${mensagem}
 
-Gere somente o que você realmente vai falar em voz alta.
-Não escreva indicações como "Resposta:" ou "Áudio:".
-Não coloque explicações entre parênteses.
+Gere somente a fala que será transformada em áudio.
+Sem explicações ou indicações entre parênteses.
 `;
 
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_TEXT_MODEL}:generateContent?key=${encodeURIComponent(GEMINI_API_KEY)}`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        contents: [
+  let ultimoErro;
+
+  for (const modelo of modelos) {
+
+    for (let tentativa = 1; tentativa <= 2; tentativa++) {
+
+      try {
+
+        console.log(
+          `Tentando Gemini ${modelo} - tentativa ${tentativa}/2`
+        );
+
+        const response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent?key=${encodeURIComponent(GEMINI_API_KEY)}`,
           {
-            role: 'user',
-            parts: [{ text: prompt }]
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              contents: [
+                {
+                  role: 'user',
+                  parts: [{ text: prompt }]
+                }
+              ],
+              generationConfig: {
+                temperature: 0.95,
+                maxOutputTokens: 180
+              }
+            })
           }
-        ],
-        generationConfig: {
-          temperature: 0.95,
-          maxOutputTokens: 180
+        );
+
+        const data = await response.json();
+
+        if (!response.ok) {
+
+          const erro = new Error(
+            `Gemini ${modelo}: HTTP ${response.status} - ${
+              data.error?.message || 'Erro desconhecido'
+            }`
+          );
+
+          erro.status = response.status;
+          throw erro;
         }
-      })
+
+        const texto = data.candidates?.[0]?.content?.parts
+          ?.map(part => part.text || '')
+          .join('')
+          .trim();
+
+        if (!texto) {
+          throw new Error(
+            `Gemini ${modelo} retornou uma resposta vazia.`
+          );
+        }
+
+        console.log(`Resposta gerada com ${modelo}.`);
+
+        return texto;
+
+      } catch (error) {
+
+        ultimoErro = error;
+
+        console.error(
+          `Falha no modelo ${modelo}:`,
+          error.message
+        );
+
+        const temporario =
+          !error.status ||
+          [429, 500, 502, 503, 504].includes(error.status);
+
+        if (!temporario) {
+          throw error;
+        }
+
+        if (tentativa < 2) {
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+      }
     }
-  );
 
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(
-      `Erro Gemini texto: ${JSON.stringify(data)}`
+    console.log(
+      `Modelo ${modelo} indisponível. Tentando o próximo...`
     );
   }
 
-  const texto = data.candidates?.[0]?.content?.parts
-    ?.map(part => part.text || '')
-    .join('')
-    .trim();
-
-  if (!texto) {
-    throw new Error('O Gemini não retornou uma resposta de texto.');
-  }
-
-  return texto;
+  throw new Error(
+    `Todos os modelos Gemini falharam. Último erro: ${
+      ultimoErro?.message || 'Erro desconhecido'
+    }`
+  );
 }
+
 
 // Converte a resposta em áudio WAV
 async function gerarAudioGemini(texto, perfil) {
