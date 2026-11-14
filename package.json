@@ -10,6 +10,7 @@
     "discord.js": "14.26.5",
     "@discordjs/voice": "^0.16.1",
     "express": "^4.19.2",
-    "libsodium-wrappers": "^0.7.13"
+    "libsodium-wrappers": "^0.7.13",
+    "@google/genai": "^1.30.0"
   }
 }
