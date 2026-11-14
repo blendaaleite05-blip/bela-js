@@ -940,7 +940,7 @@ client.on('messageCreate', async message => {
 // SISTEMA DE CONVERSA POR ÁUDIO COM GEMINI
 // ==========================================
 
-const GEMINI_TEXT_MODEL = 'gemini-3.8-flash';
+const GEMINI_TEXT_MODEL = 'gemini-2.5-flash';
 const GEMINI_TTS_MODEL = 'gemini-3.8-flash-tts';
 
 // Cinco perfis de voz
