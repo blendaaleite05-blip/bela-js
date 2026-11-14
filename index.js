@@ -21,25 +21,25 @@ const {
   TextInputStyle,
   ChannelSelectMenuBuilder,
   ChannelType,
-  FileUploadBuilder,
-  LabelBuilder
+  StringSelectMenuBuilder
 } = require('discord.js');
 
 const { joinVoiceChannel } = require('@discordjs/voice');
 const express = require('express');
 
-// Servidor HTTP do Render
+// Servidor HTTP exigido pelo Render
 const app = express();
 app.get('/', (_req, res) => res.send('Bot online!'));
 app.listen(process.env.PORT || 3000, () => console.log('Servidor web online.'));
 
-// Configurações do bot
+// Configurações
 const TOKEN = process.env.DISCORD_TOKEN;
 const SERVIDOR_ID = '920817412050403399';
 const CANAL_VOZ_ID = '1540757131144208444';
 const PREFIXO = '!';
 const COR_PADRAO = 0xB58AD9;
 const MAX_ELEMENTOS = 6;
+const PREFIXO_ID = 'painel_editor_';
 
 if (!TOKEN) {
   console.error('A variável DISCORD_TOKEN não foi configurada no Render.');
@@ -55,9 +55,7 @@ const client = new Client({
   ]
 });
 
-// Sessões do editor
 const sessoes = new Map();
-const PREFIXO_ID = 'painel_editor_';
 
 const comandos = [
   new SlashCommandBuilder()
@@ -68,26 +66,18 @@ const comandos = [
 
 async function registrarComandos() {
   const rest = new REST({ version: '10' }).setToken(TOKEN);
-
   await rest.put(
     Routes.applicationGuildCommands(client.user.id, SERVIDOR_ID),
-    {
-      body: comandos.map(command => command.toJSON())
-    }
+    { body: comandos.map(command => command.toJSON()) }
   );
-
   console.log('Comando /container registrado.');
 }
 
-function makeButton(id, label, style = ButtonStyle.Secondary, emoji) {
-  const button = new ButtonBuilder()
+function makeButton(id, label, style = ButtonStyle.Secondary) {
+  return new ButtonBuilder()
     .setCustomId(id)
     .setLabel(label)
     .setStyle(style);
-
-  if (emoji) button.setEmoji(emoji);
-
-  return button;
 }
 
 function makeTextModal(id, title, fields) {
@@ -248,8 +238,6 @@ function buildEditor(user, session) {
       ).slice(0, 80)
     }));
 
-    const { StringSelectMenuBuilder } = require('discord.js');
-
     container.addActionRowComponents(
       new ActionRowBuilder().addComponents(
         new StringSelectMenuBuilder()
@@ -306,54 +294,29 @@ function validImageUrl(value) {
   }
 }
 
-async function showImageModal(interaction, modalId, title) {
-  const modal = new ModalBuilder()
-    .setCustomId(modalId)
-    .setTitle(title);
+async function showImageModal(interaction, modalId, title, withText = false) {
+  const fields = [
+    {
+      id: 'image_url',
+      label: 'Link direto da imagem',
+      placeholder: 'https://site.com/imagem.png',
+      max: 1000
+    }
+  ];
 
-  const upload = new FileUploadBuilder()
-    .setCustomId('image_file')
-    .setMinValues(0)
-    .setMaxValues(1)
-    .setRequired(false)
-    .setFileTypes('image');
-
-  modal.addLabelComponents(
-    new LabelBuilder()
-      .setLabel('Enviar imagem')
-      .setDescription('Anexe uma imagem ou deixe vazio para usar um link.')
-      .setFileUploadComponent(upload)
-  );
-
-  modal.addComponents(
-    new ActionRowBuilder().addComponents(
-      new TextInputBuilder()
-        .setCustomId('image_url')
-        .setLabel('Ou cole o link direto da imagem')
-        .setStyle(TextInputStyle.Short)
-        .setRequired(false)
-        .setMaxLength(1000)
-        .setPlaceholder('https://...')
-    )
-  );
-
-  if (modalId === 'ed_modal_thumbnail') {
-    modal.addComponents(
-      new ActionRowBuilder().addComponents(
-        new TextInputBuilder()
-          .setCustomId('image_text')
-          .setLabel('Texto ao lado da thumbnail')
-          .setStyle(TextInputStyle.Short)
-          .setRequired(false)
-          .setMaxLength(500)
-      )
-    );
+  if (withText) {
+    fields.push({
+      id: 'image_text',
+      label: 'Texto ao lado da thumbnail',
+      required: false,
+      max: 500
+    });
   }
 
-  await interaction.showModal(modal);
+  await interaction.showModal(
+    makeTextModal(modalId, title, fields)
+  );
 }
-
-// Inicialização do bot
 client.once('clientReady', async () => {
   console.log(`Bot conectado como ${client.user.tag}`);
 
@@ -420,7 +383,7 @@ client.on('interactionCreate', async interaction => {
       }
 
       await interaction.message.delete().catch(() => {});
-      return openPrivateEditor(interaction);
+      return await openPrivateEditor(interaction);
     }
 
     if (
@@ -472,7 +435,8 @@ client.on('interactionCreate', async interaction => {
         return showImageModal(
           interaction,
           'ed_modal_thumbnail',
-          'Adicionar thumbnail'
+          'Adicionar thumbnail',
+          true
         );
       }
 
@@ -526,7 +490,7 @@ client.on('interactionCreate', async interaction => {
           .fetch(session.channelId)
           .catch(() => null);
 
-        if (!channel?.isTextBased()) {
+        if (!channel?.isTextBased() || !channel.send) {
           return interaction.reply({
             content: 'O canal selecionado não está disponível.',
             flags: MessageFlags.Ephemeral
@@ -635,12 +599,10 @@ client.on('interactionCreate', async interaction => {
           });
         }
 
-        if (
-          !addElement(session, {
-            type: id === 'ed_modal_title' ? 'title' : 'text',
-            content: id === 'ed_modal_title' ? `# ${content}` : content
-          })
-        ) {
+        if (!addElement(session, {
+          type: id === 'ed_modal_title' ? 'title' : 'text',
+          content: id === 'ed_modal_title' ? `# ${content}` : content
+        })) {
           return interaction.reply({
             content: `Limite de ${MAX_ELEMENTOS} elementos nesta versão.`,
             flags: MessageFlags.Ephemeral
@@ -675,20 +637,16 @@ client.on('interactionCreate', async interaction => {
           .getTextInputValue('image_url')
           .trim();
 
-        const files = interaction.fields.getUploadedFiles('image_file');
-        const uploaded = files?.first();
-        const imageUrl = uploaded?.url || url;
-
-        if (!imageUrl || (!uploaded && !validImageUrl(imageUrl))) {
+        if (!validImageUrl(url)) {
           return interaction.reply({
-            content: 'Anexe uma imagem ou informe um link direto válido.',
+            content: 'Informe um link direto válido para uma imagem (PNG, JPG, GIF ou WEBP).',
             flags: MessageFlags.Ephemeral
           });
         }
 
         const element = {
           type: id === 'ed_modal_banner' ? 'banner' : 'thumbnail',
-          url: imageUrl
+          url
         };
 
         if (id === 'ed_modal_thumbnail') {
@@ -703,7 +661,7 @@ client.on('interactionCreate', async interaction => {
       }
 
       return interaction.reply({
-        content: 'Alteração salva! Volte ao editor e continue montando seu painel.',
+        content: 'Alteração salva! Clique em **Atualizar** no editor para ver a estrutura atualizada.',
         flags: MessageFlags.Ephemeral
       });
     }
@@ -722,7 +680,6 @@ client.on('interactionCreate', async interaction => {
     }
   }
 });
-
 // Comando tradicional !container
 client.on('messageCreate', async message => {
   if (message.author.bot || !message.guild) return;
@@ -739,4 +696,18 @@ client.on('messageCreate', async message => {
   await message.delete().catch(() => {});
 
   const opener = new ActionRowBuilder().addComponents(
-  
+    new ButtonBuilder()
+      .setCustomId(`${PREFIXO_ID}${message.author.id}`)
+      .setLabel('Abrir editor de painéis')
+      .setStyle(ButtonStyle.Primary)
+  );
+
+  const sent = await message.channel.send({
+    content: `${message.author}, clique abaixo para abrir seu editor privado.`,
+    components: [opener]
+  });
+
+  setTimeout(() => sent.delete().catch(() => {}), 60000);
+});
+
+client.login(TOKEN);
