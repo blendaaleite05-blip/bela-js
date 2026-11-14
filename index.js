@@ -176,11 +176,10 @@ function buildPublishedContainer(session) {
 
       const button = new ButtonBuilder()
         .setCustomId(`role_toggle_${item.roleId}`)
-        .setLabel('Selecionar')
         .setStyle(ButtonStyle.Secondary);
 
       if (item.emoji) {
-        button.setEmoji(item.emoji);
+        button.setEmoji({ id: item.emoji });
       }
 
       container.addSectionComponents(
@@ -601,10 +600,10 @@ client.on('interactionCreate', async interaction => {
             },
             {
               id: 'role_emoji',
-              label: 'Emoji do botão (opcional)',
-              placeholder: 'Exemplo: 💜',
+              label: 'ID do emoji personalizado (opcional)',
+              placeholder: 'Cole o ID do emoji aqui',
               required: false,
-              max: 100
+              max: 20
             }
           ])
         );
@@ -756,7 +755,6 @@ client.on('interactionCreate', async interaction => {
 
         if (target >= 0 && target < session.elements.length) {
           [
-            
             session.elements[index],
             session.elements[target]
           ] = [
@@ -937,4 +935,3 @@ client.on('messageCreate', async message => {
 });
 
 client.login(TOKEN);
-          
