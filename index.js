@@ -1,3 +1,4 @@
+
 const {
   Client,
   GatewayIntentBits,
@@ -29,8 +30,12 @@ const express = require('express');
 
 // Servidor HTTP exigido pelo Render
 const app = express();
+
 app.get('/', (_req, res) => res.send('Bot online!'));
-app.listen(process.env.PORT || 3000, () => console.log('Servidor web online.'));
+
+app.listen(process.env.PORT || 3000, () => {
+  console.log('Servidor web online.');
+});
 
 // Configurações
 const TOKEN = process.env.DISCORD_TOKEN;
@@ -66,10 +71,12 @@ const comandos = [
 
 async function registrarComandos() {
   const rest = new REST({ version: '10' }).setToken(TOKEN);
+
   await rest.put(
     Routes.applicationGuildCommands(client.user.id, SERVIDOR_ID),
     { body: comandos.map(command => command.toJSON()) }
   );
+
   console.log('Comando /container registrado.');
 }
 
@@ -215,16 +222,20 @@ function buildEditor(user, session) {
         `### Estrutura do painel\n${list}`
       )
     )
+
+    // CORREÇÃO: menu de canal dentro de uma ActionRowBuilder
     .addActionRowComponents(
-      new ChannelSelectMenuBuilder()
-        .setCustomId('ed_channel')
-        .setPlaceholder('Definir canal de publicação')
-        .setChannelTypes(
-          ChannelType.GuildText,
-          ChannelType.GuildAnnouncement
-        )
-        .setMinValues(1)
-        .setMaxValues(1)
+      new ActionRowBuilder().addComponents(
+        new ChannelSelectMenuBuilder()
+          .setCustomId('ed_channel')
+          .setPlaceholder('Definir canal de publicação')
+          .setChannelTypes(
+            ChannelType.GuildText,
+            ChannelType.GuildAnnouncement
+          )
+          .setMinValues(1)
+          .setMaxValues(1)
+      )
     );
 
   if (session.elements.length) {
@@ -317,6 +328,7 @@ async function showImageModal(interaction, modalId, title, withText = false) {
     makeTextModal(modalId, title, fields)
   );
 }
+
 client.once('clientReady', async () => {
   console.log(`Bot conectado como ${client.user.tag}`);
 
@@ -680,6 +692,7 @@ client.on('interactionCreate', async interaction => {
     }
   }
 });
+
 // Comando tradicional !container
 client.on('messageCreate', async message => {
   if (message.author.bot || !message.guild) return;
