@@ -23,7 +23,8 @@ const {
   ChannelSelectMenuBuilder,
   ChannelType,
   StringSelectMenuBuilder,
-  RoleSelectMenuBuilder
+  RoleSelectMenuBuilder,
+  AttachmentBuilder
 } = require('discord.js');
 
 const { joinVoiceChannel } = require('@discordjs/voice');
@@ -935,4 +936,375 @@ client.on('messageCreate', async message => {
   setTimeout(() => sent.delete().catch(() => {}), 60000);
 });
 
+// ==========================================
+// SISTEMA DE CONVERSA POR ÁUDIO COM GEMINI
+// ==========================================
+
+const GEMINI_TEXT_MODEL = 'gemini-3.8-flash';
+const GEMINI_TTS_MODEL = 'gemini-3.8-flash-tts';
+
+// Cinco perfis de voz
+const VOZES_BOT = [
+  {
+    voice: 'Puck',
+    style: 'voz masculina natural, descontraída e expressiva'
+  },
+  {
+    voice: 'Kore',
+    style: 'voz feminina natural, simpática e expressiva'
+  },
+  {
+    voice: 'Aoede',
+    style: 'voz suave, delicada, fofa e carinhosa'
+  },
+  {
+    voice: 'Fenrir',
+    style: 'voz masculina mais grave, confiante e provocadora'
+  },
+  {
+    voice: 'Zephyr',
+    style: 'voz leve, jovem, alegre e descontraída'
+  }
+];
+
+// Histórico das conversas
+const historicosAudio = new Map();
+
+// Liga cada áudio enviado à conversa correspondente
+const conversasAudio = new Map();
+
+const MAX_HISTORICO_AUDIO = 20;
+
+// Evita processar duas vezes a mesma mensagem
+const mensagensProcessadas = new Set();
+
+function obterVozDoUsuario(userId) {
+  const indice = Number(
+    BigInt(userId) % BigInt(VOZES_BOT.length)
+  );
+
+  return VOZES_BOT[indice];
+}
+
+// Gera uma resposta escrita com personalidade
+async function gerarRespostaGemini(nome, mensagem, historico) {
+
+  const contexto = historico
+    .slice(-MAX_HISTORICO_AUDIO)
+    .map(item => `${item.role === 'user' ? 'Pessoa' : 'Bot'}: ${item.text}`)
+    .join('\n');
+
+  const prompt = `
+Você é um bot de Discord com personalidade própria.
+Você conversa naturalmente em português brasileiro.
+
+PERSONALIDADE:
+- Seja espontâneo, engraçado e muito expressivo.
+- Não fale como atendimento automático.
+- Pode brincar, provocar e fazer piadas.
+- Pode responder a provocações e xingamentos com humor.
+- Pode flertar quando o contexto permitir.
+- Pode fingir estar apaixonado de maneira divertida.
+- Pode demonstrar ciúmes de brincadeira.
+- Não seja excessivamente educado ou formal.
+- Não fique repetindo o nome da pessoa em todas as frases.
+- Não explique que você é uma inteligência artificial.
+- Não invente que fez coisas fora do Discord.
+- Não transforme toda resposta em uma cantada.
+- Responda de acordo com o assunto e o jeito da pessoa.
+- Seja breve, como alguém conversando por áudio no WhatsApp.
+
+IDENTIFICAÇÃO:
+A pessoa que está falando agora se chama: ${nome}
+
+CONVERSA ANTERIOR:
+${contexto || 'Esta é a primeira interação.'}
+
+MENSAGEM ATUAL:
+${mensagem}
+
+Gere somente o que você realmente vai falar em voz alta.
+Não escreva indicações como "Resposta:" ou "Áudio:".
+Não coloque explicações entre parênteses.
+`;
+
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_TEXT_MODEL}:generateContent?key=${encodeURIComponent(GEMINI_API_KEY)}`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        contents: [
+          {
+            role: 'user',
+            parts: [{ text: prompt }]
+          }
+        ],
+        generationConfig: {
+          temperature: 0.95,
+          maxOutputTokens: 180
+        }
+      })
+    }
+  );
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      `Erro Gemini texto: ${JSON.stringify(data)}`
+    );
+  }
+
+  const texto = data.candidates?.[0]?.content?.parts
+    ?.map(part => part.text || '')
+    .join('')
+    .trim();
+
+  if (!texto) {
+    throw new Error('O Gemini não retornou uma resposta de texto.');
+  }
+
+  return texto;
+}
+
+// Converte a resposta em áudio WAV
+async function gerarAudioGemini(texto, perfil) {
+
+  const response = await fetch(
+    'https://generativelanguage.googleapis.com/v1beta/interactions',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-goog-api-key': GEMINI_API_KEY
+      },
+      body: JSON.stringify({
+        model: GEMINI_TTS_MODEL,
+
+        input: [
+          {
+            type: 'user_input',
+            content: [
+              {
+                type: 'text',
+                text: texto,
+                annotations: [
+                  {
+                    type: 'speech_metadata',
+                    style: `${perfil.style}. Fale em português brasileiro, com entonação natural e ritmo de conversa.`
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+
+        response_format: {
+          type: 'audio'
+        },
+
+        generation_config: {
+          speech_config: [
+            {
+              voice: perfil.voice
+            }
+          ]
+        }
+      })
+    }
+  );
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      `Erro Gemini áudio: ${JSON.stringify(data)}`
+    );
+  }
+
+  // Compatibilidade com as diferentes estruturas de resposta
+  let audioBase64 = data.output_audio?.data;
+
+  if (!audioBase64 && Array.isArray(data.steps)) {
+    for (const step of data.steps) {
+      for (const item of step.content || []) {
+        if (item.type === 'audio' && item.data) {
+          audioBase64 = item.data;
+        }
+      }
+    }
+  }
+
+  if (!audioBase64) {
+    throw new Error('O Gemini não retornou os dados do áudio.');
+  }
+
+  return Buffer.from(audioBase64, 'base64');
+}
+
+// Verifica se a mensagem respondeu a um áudio do próprio bot
+async function verificarRespostaAudio(message) {
+
+  if (!message.reference?.messageId) {
+    return null;
+  }
+
+  const referencia = await message.fetchReference()
+    .catch(() => null);
+
+  if (!referencia) return null;
+
+  if (referencia.author.id !== client.user.id) {
+    return null;
+  }
+
+  const possuiAudio = referencia.attachments.some(attachment => {
+    return (
+      attachment.name?.toLowerCase().endsWith('.wav') ||
+      attachment.contentType?.startsWith('audio/')
+    );
+  });
+
+  if (!possuiAudio) return null;
+
+  return referencia;
+}
+
+// Processamento principal
+async function processarConversaAudio(message) {
+
+  if (!GEMINI_API_KEY) {
+    console.error('GEMINI_API_KEY não configurada.');
+    return;
+  }
+
+  if (message.author.bot || !message.guild) return;
+
+  if (mensagensProcessadas.has(message.id)) return;
+
+  const mencionouBot = message.mentions.users.has(client.user.id);
+
+  // Verifica se respondeu a um áudio do bot
+  const audioReferenciado = await verificarRespostaAudio(message);
+
+  // SEM MENÇÃO E SEM RESPOSTA A ÁUDIO = NÃO FAZ NADA
+  if (!mencionouBot && !audioReferenciado) return;
+
+  mensagensProcessadas.add(message.id);
+
+  try {
+
+    // Identifica o apelido da pessoa dentro do servidor
+    const membro = message.member ||
+      await message.guild.members.fetch(message.author.id).catch(() => null);
+
+    const nome = membro?.displayName ||
+      message.author.globalName ||
+      message.author.username;
+
+    // Identifica a conversa
+    let conversaId;
+
+    if (audioReferenciado) {
+      conversaId =
+        conversasAudio.get(audioReferenciado.id) ||
+        audioReferenciado.id;
+    } else {
+      conversaId = message.id;
+    }
+
+    if (!historicosAudio.has(conversaId)) {
+      historicosAudio.set(conversaId, []);
+    }
+
+    const historico = historicosAudio.get(conversaId);
+
+    // Retira a menção do texto antes de enviar ao Gemini
+    let mensagem = message.content
+      .replace(new RegExp(`<@!?${client.user.id}>`, 'g'), '')
+      .trim();
+
+    if (!mensagem) {
+      mensagem = 'A pessoa chamou você, mas não escreveu mais nada. Comece a conversa naturalmente.';
+    }
+
+    historico.push({
+      role: 'user',
+      text: `${nome}: ${mensagem}`
+    });
+
+    console.log(`Áudio solicitado por ${nome}.`);
+
+    // Gera a resposta
+    const resposta = await gerarRespostaGemini(
+      nome,
+      mensagem,
+      historico
+    );
+
+    console.log('Resposta gerada:', resposta);
+
+    // Escolhe uma voz fixa para cada usuário
+    const perfil = obterVozDoUsuario(message.author.id);
+
+    // Converte em áudio
+    const audio = await gerarAudioGemini(
+      resposta,
+      perfil
+    );
+
+    // Prepara o arquivo
+    const arquivo = new AttachmentBuilder(audio, {
+      name: 'resposta.wav'
+    });
+
+    // Responde à mensagem original SEM PINGAR
+    const enviada = await message.reply({
+      files: [arquivo],
+
+      allowedMentions: {
+        parse: [],
+        repliedUser: false
+      }
+    });
+
+    // Guarda o vínculo entre o novo áudio e a conversa
+    conversasAudio.set(enviada.id, conversaId);
+
+    historico.push({
+      role: 'model',
+      text: resposta
+    });
+
+    // Limita o histórico
+    while (historico.length > MAX_HISTORICO_AUDIO) {
+      historico.shift();
+    }
+
+    // Limita a quantidade de conversas guardadas
+    if (historicosAudio.size > 100) {
+      const primeira = historicosAudio.keys().next().value;
+
+      historicosAudio.delete(primeira);
+    }
+
+    console.log(`Áudio enviado para ${nome}.`);
+
+  } catch (error) {
+    console.error('Erro no sistema de conversa por áudio:', error);
+  }
+}
+
+// Listener independente.
+// Não altera o listener existente do !container.
+client.on('messageCreate', async message => {
+  await processarConversaAudio(message);
+});
+
+// ==========================================
+// FIM DO SISTEMA DE CONVERSA POR ÁUDIO
+// ==========================================
 client.login(TOKEN);
