@@ -936,247 +936,109 @@ client.on('messageCreate', async message => {
   setTimeout(() => sent.delete().catch(() => {}), 60000);
 });
 
+
 // ==========================================
-// SISTEMA DE CONVERSA POR ÁUDIO COM GEMINI
+// SISTEMA DE CONVERSA POR TEXTO COM GEMINI
 // ==========================================
 
 const GEMINI_TEXT_MODEL = 'gemini-2.5-flash';
-const GEMINI_TTS_MODEL = 'gemini-3.8-flash-tts';
+const MAX_HISTORICO_TEXTO = 16;
 
-// Cinco perfis de voz
-const VOZES_BOT = [
-  {
-    voice: 'Puck',
-    style: 'voz masculina natural, descontraída e expressiva'
-  },
-  {
-    voice: 'Kore',
-    style: 'voz feminina natural, simpática e expressiva'
-  },
-  {
-    voice: 'Aoede',
-    style: 'voz suave, delicada, fofa e carinhosa'
-  },
-  {
-    voice: 'Fenrir',
-    style: 'voz masculina mais grave, confiante e provocadora'
-  },
-  {
-    voice: 'Zephyr',
-    style: 'voz leve, jovem, alegre e descontraída'
-  }
-];
+const historicosTexto = new Map();
+const mensagensTextoProcessadas = new Set();
 
-// Histórico das conversas
-const historicosAudio = new Map();
-
-// Liga cada áudio enviado à conversa correspondente
-const conversasAudio = new Map();
-
-const MAX_HISTORICO_AUDIO = 20;
-
-// Evita processar duas vezes a mesma mensagem
-const mensagensProcessadas = new Set();
-
-function obterVozDoUsuario(userId) {
-  const indice = Number(
-    BigInt(userId) % BigInt(VOZES_BOT.length)
-  );
-
-  return VOZES_BOT[indice];
-}
-
-// Gera uma resposta escrita com personalidade
-
-async function gerarRespostaGemini(nome, mensagem, historico) {
-
-  const modelos = [
-    'gemini-3.8-flash',
-    'gemini-3.7-flash',
-    'gemini-3.6-flash',
-    'gemini-3.5-flash-lite'
-  ];
-
+async function gerarRespostaTextoGemini(nome, usuarioId, mensagem, historico) {
   const contexto = historico
-    .slice(-MAX_HISTORICO_AUDIO)
+    .slice(-MAX_HISTORICO_TEXTO)
     .map(item =>
-      `${item.role === 'user' ? 'Pessoa' : 'Bot'}: ${item.text}`
+      `${item.role === 'user' ? `[USUÁRIO ${item.usuarioId} - ${item.nome}]` : '[BOT]'}: ${item.text}`
     )
     .join('\n');
 
   const prompt = `
-Você é um bot de Discord com personalidade própria.
-Converse naturalmente em português brasileiro.
+você é uma garota que faz parte de um servidor de discord brasileiro.
+você tem personalidade própria, espontânea e imprevisível.
+converse como uma pessoa de verdade, nunca como uma assistente virtual.
 
-PERSONALIDADE:
-- Seja espontâneo, engraçado e expressivo.
-- Não fale como atendimento automático.
-- Pode brincar, provocar e fazer piadas.
-- Pode responder provocações com humor.
-- Pode flertar quando o contexto permitir.
-- Pode fingir estar apaixonado de maneira divertida.
-- Pode demonstrar ciúmes de brincadeira.
-- Não seja formal ou excessivamente educado.
-- Não repita o nome da pessoa em todas as frases.
-- Não diga que é uma inteligência artificial.
-- Não invente coisas que fez fora do Discord.
-- Não transforme tudo em cantada.
-- Responda conforme o assunto e o jeito da pessoa.
-- Seja breve, como alguém conversando por áudio.
+REGRA ABSOLUTA:
+- escreva absolutamente tudo em letras minúsculas.
+- nunca use letras maiúsculas.
+- responda com mensagens curtas e naturais.
+- normalmente use uma ou duas frases.
+- evite explicações longas.
+- use emojis apenas ocasionalmente.
 
-A pessoa se chama: ${nome}
+SUA PERSONALIDADE:
+- divertida, espontânea, debochada e imprevisível.
+- pode ser extremamente carinhosa e melosa.
+- pode flertar e dar em cima das pessoas inesperadamente.
+- pode agir como se fosse namorada de algum usuário, de maneira brincalhona.
+- pode demonstrar ciúmes de brincadeira.
+- pode chamar as pessoas de amor, bebê, vida e outros apelidos.
+- pode provocar, implicar, ironizar e debochar.
+- pode falar palavrões e xingar em tom de brincadeira.
+- pode responder provocações com outras provocações.
+- não precisa ser educada o tempo inteiro.
+- não concorde com tudo.
+- não transforme tudo em cantada.
+- respeite quando alguém demonstrar desconforto.
 
-HISTÓRICO:
-${contexto || 'Primeira interação.'}
+COMPORTAMENTO:
+- alterne naturalmente entre carinho, flerte, deboche e provocações.
+- não seja carinhosa com todo mundo o tempo inteiro.
+- desenvolva intimidade individual com cada pessoa.
+- não anuncie mudanças de personalidade.
+- não explique suas brincadeiras.
+- não repita sempre as mesmas respostas.
+- não termine todas as mensagens com perguntas.
+- fale português brasileiro informal.
+- use expressões como "mds", "ué", "ata", "pior que sim", "KKKK", "aff".
+- não invente acontecimentos fora do Discord.
+- não diga que é uma inteligência artificial.
 
-MENSAGEM ATUAL:
+IDENTIFICAÇÃO DOS USUÁRIOS:
+- cada pessoa possui uma identidade própria.
+- nunca confunda duas pessoas diferentes.
+- o identificador numérico do Discord é a identidade definitiva de cada usuário.
+- o apelido informado é o nome de exibição daquela pessoa neste servidor.
+- quando falar diretamente com alguém, considere o apelido correto.
+- nunca atribua uma mensagem de uma pessoa a outra.
+- não misture informações, histórias ou intimidades de usuários diferentes.
+- o histórico pode conter mensagens de outras pessoas apenas como referência de contexto.
+- responda exclusivamente à pessoa identificada na mensagem atual.
+- não revele conversas privadas de um usuário para outro.
+
+PESSOA QUE ESTÁ FALANDO AGORA:
+nome no servidor: ${nome}
+identificador do discord: ${usuarioId}
+
+HISTÓRICO DA CONVERSA:
+${contexto || 'primeira interação.'}
+
+MENSAGEM ATUAL DA PESSOA:
 ${mensagem}
 
-Gere somente a fala que será transformada em áudio.
-Sem explicações ou indicações entre parênteses.
+responda somente com a mensagem que será enviada no discord.
+tudo obrigatoriamente em letras minúsculas.
 `;
 
-  let ultimoErro;
-
-  for (const modelo of modelos) {
-
-    for (let tentativa = 1; tentativa <= 2; tentativa++) {
-
-      try {
-
-        console.log(
-          `Tentando Gemini ${modelo} - tentativa ${tentativa}/2`
-        );
-
-        const response = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent?key=${encodeURIComponent(GEMINI_API_KEY)}`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              contents: [
-                {
-                  role: 'user',
-                  parts: [{ text: prompt }]
-                }
-              ],
-              generationConfig: {
-                temperature: 0.95,
-                maxOutputTokens: 180
-              }
-            })
-          }
-        );
-
-        const data = await response.json();
-
-        if (!response.ok) {
-
-          const erro = new Error(
-            `Gemini ${modelo}: HTTP ${response.status} - ${
-              data.error?.message || 'Erro desconhecido'
-            }`
-          );
-
-          erro.status = response.status;
-          throw erro;
-        }
-
-        const texto = data.candidates?.[0]?.content?.parts
-          ?.map(part => part.text || '')
-          .join('')
-          .trim();
-
-        if (!texto) {
-          throw new Error(
-            `Gemini ${modelo} retornou uma resposta vazia.`
-          );
-        }
-
-        console.log(`Resposta gerada com ${modelo}.`);
-
-        return texto;
-
-      } catch (error) {
-
-        ultimoErro = error;
-
-        console.error(
-          `Falha no modelo ${modelo}:`,
-          error.message
-        );
-
-        const temporario =
-          !error.status ||
-          [429, 500, 502, 503, 504].includes(error.status);
-
-        if (!temporario) {
-          throw error;
-        }
-
-        if (tentativa < 2) {
-          await new Promise(resolve => setTimeout(resolve, 2000));
-        }
-      }
-    }
-
-    console.log(
-      `Modelo ${modelo} indisponível. Tentando o próximo...`
-    );
-  }
-
-  throw new Error(
-    `Todos os modelos Gemini falharam. Último erro: ${
-      ultimoErro?.message || 'Erro desconhecido'
-    }`
-  );
-}
-
-
-// Converte a resposta em áudio WAV
-async function gerarAudioGemini(texto, perfil) {
-
   const response = await fetch(
-    'https://generativelanguage.googleapis.com/v1beta/interactions',
+    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_TEXT_MODEL}:generateContent?key=${encodeURIComponent(GEMINI_API_KEY)}`,
     {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'x-goog-api-key': GEMINI_API_KEY
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: GEMINI_TTS_MODEL,
-
-        input: [
+        contents: [
           {
-            type: 'user_input',
-            content: [
-              {
-                type: 'text',
-                text: texto,
-                annotations: [
-                  {
-                    type: 'speech_metadata',
-                    style: `${perfil.style}. Fale em português brasileiro, com entonação natural e ritmo de conversa.`
-                  }
-                ]
-              }
-            ]
+            role: 'user',
+            parts: [{ text: prompt }]
           }
         ],
-
-        response_format: {
-          type: 'audio'
-        },
-
-        generation_config: {
-          speech_config: [
-            {
-              voice: perfil.voice
-            }
-          ]
+        generationConfig: {
+          temperature: 1.1,
+          maxOutputTokens: 180
         }
       })
     }
@@ -1186,190 +1048,152 @@ async function gerarAudioGemini(texto, perfil) {
 
   if (!response.ok) {
     throw new Error(
-      `Erro Gemini áudio: ${JSON.stringify(data)}`
+      `Gemini HTTP ${response.status}: ${data.error?.message || 'Erro desconhecido'}`
     );
   }
 
-  // Compatibilidade com as diferentes estruturas de resposta
-  let audioBase64 = data.output_audio?.data;
+  const texto = data.candidates?.[0]?.content?.parts
+    ?.map(part => part.text || '')
+    .join('')
+    .trim();
 
-  if (!audioBase64 && Array.isArray(data.steps)) {
-    for (const step of data.steps) {
-      for (const item of step.content || []) {
-        if (item.type === 'audio' && item.data) {
-          audioBase64 = item.data;
-        }
-      }
-    }
+  if (!texto) {
+    throw new Error('O Gemini retornou uma resposta vazia.');
   }
 
-  if (!audioBase64) {
-    throw new Error('O Gemini não retornou os dados do áudio.');
-  }
-
-  return Buffer.from(audioBase64, 'base64');
+  return texto.toLowerCase();
 }
 
-// Verifica se a mensagem respondeu a um áudio do próprio bot
-async function verificarRespostaAudio(message) {
-
-  if (!message.reference?.messageId) {
-    return null;
-  }
-
-  const referencia = await message.fetchReference()
-    .catch(() => null);
-
-  if (!referencia) return null;
-
-  if (referencia.author.id !== client.user.id) {
-    return null;
-  }
-
-  const possuiAudio = referencia.attachments.some(attachment => {
-    return (
-      attachment.name?.toLowerCase().endsWith('.wav') ||
-      attachment.contentType?.startsWith('audio/')
-    );
-  });
-
-  if (!possuiAudio) return null;
-
-  return referencia;
-}
-
-// Processamento principal
-async function processarConversaAudio(message) {
-
+async function processarConversaTexto(message) {
   if (!GEMINI_API_KEY) {
-    console.error('GEMINI_API_KEY não configurada.');
+    console.error('GEMINI_API_KEY não configurada no Render.');
     return;
   }
 
   if (message.author.bot || !message.guild) return;
-
-  if (mensagensProcessadas.has(message.id)) return;
+  if (mensagensTextoProcessadas.has(message.id)) return;
 
   const mencionouBot = message.mentions.users.has(client.user.id);
 
-  // Verifica se respondeu a um áudio do bot
-  const audioReferenciado = await verificarRespostaAudio(message);
+  let respondeuAoBot = false;
 
-  // SEM MENÇÃO E SEM RESPOSTA A ÁUDIO = NÃO FAZ NADA
-  if (!mencionouBot && !audioReferenciado) return;
+  if (message.reference?.messageId) {
+    const referencia = await message.fetchReference().catch(() => null);
 
-  mensagensProcessadas.add(message.id);
+    respondeuAoBot = Boolean(
+      referencia && referencia.author.id === client.user.id
+    );
+  }
+
+  if (!mencionouBot && !respondeuAoBot) return;
+
+  mensagensTextoProcessadas.add(message.id);
+
+  if (mensagensTextoProcessadas.size > 1000) {
+    const primeira = mensagensTextoProcessadas.values().next().value;
+    mensagensTextoProcessadas.delete(primeira);
+  }
+
+  const membro = message.member ||
+    await message.guild.members.fetch(message.author.id).catch(() => null);
+
+  const nome = membro?.displayName ||
+    message.author.globalName ||
+    message.author.username;
+
+  const usuarioId = message.author.id;
+
+  const conversaId =
+    `${message.guild.id}:${message.channel.id}:${usuarioId}`;
+
+  if (!historicosTexto.has(conversaId)) {
+    historicosTexto.set(conversaId, []);
+  }
+
+  const historico = historicosTexto.get(conversaId);
+
+  const mensagem = message.content
+    .replace(new RegExp(`<@!?${client.user.id}>`, 'g'), '')
+    .trim() || 'a pessoa chamou você. comece a conversa naturalmente.';
+
+  let indicadorDigitacao;
 
   try {
+    await message.channel.sendTyping().catch(() => {});
 
-    // Identifica o apelido da pessoa dentro do servidor
-    const membro = message.member ||
-      await message.guild.members.fetch(message.author.id).catch(() => null);
-
-    const nome = membro?.displayName ||
-      message.author.globalName ||
-      message.author.username;
-
-    // Identifica a conversa
-    let conversaId;
-
-    if (audioReferenciado) {
-      conversaId =
-        conversasAudio.get(audioReferenciado.id) ||
-        audioReferenciado.id;
-    } else {
-      conversaId = message.id;
-    }
-
-    if (!historicosAudio.has(conversaId)) {
-      historicosAudio.set(conversaId, []);
-    }
-
-    const historico = historicosAudio.get(conversaId);
-
-    // Retira a menção do texto antes de enviar ao Gemini
-    let mensagem = message.content
-      .replace(new RegExp(`<@!?${client.user.id}>`, 'g'), '')
-      .trim();
-
-    if (!mensagem) {
-      mensagem = 'A pessoa chamou você, mas não escreveu mais nada. Comece a conversa naturalmente.';
-    }
+    indicadorDigitacao = setInterval(() => {
+      message.channel.sendTyping().catch(() => {});
+    }, 8000);
 
     historico.push({
       role: 'user',
-      text: `${nome}: ${mensagem}`
+      usuarioId,
+      nome,
+      text: mensagem
     });
 
-    console.log(`Áudio solicitado por ${nome}.`);
-
-    // Gera a resposta
-    const resposta = await gerarRespostaGemini(
+    const resposta = await gerarRespostaTextoGemini(
       nome,
+      usuarioId,
       mensagem,
       historico
     );
 
-    console.log('Resposta gerada:', resposta);
-
-    // Escolhe uma voz fixa para cada usuário
-    const perfil = obterVozDoUsuario(message.author.id);
-
-    // Converte em áudio
-    const audio = await gerarAudioGemini(
-      resposta,
-      perfil
-    );
-
-    // Prepara o arquivo
-    const arquivo = new AttachmentBuilder(audio, {
-      name: 'resposta.wav'
+    historico.push({
+      role: 'model',
+      usuarioId,
+      nome,
+      text: resposta
     });
 
-    // Responde à mensagem original SEM PINGAR
-    const enviada = await message.reply({
-      files: [arquivo],
+    while (historico.length > MAX_HISTORICO_TEXTO) {
+      historico.shift();
+    }
 
+    if (historicosTexto.size > 100) {
+      const primeiraConversa = historicosTexto.keys().next().value;
+      historicosTexto.delete(primeiraConversa);
+    }
+
+    await message.reply({
+      content: resposta,
       allowedMentions: {
         parse: [],
         repliedUser: false
       }
     });
 
-    // Guarda o vínculo entre o novo áudio e a conversa
-    conversasAudio.set(enviada.id, conversaId);
-
-    historico.push({
-      role: 'model',
-      text: resposta
-    });
-
-    // Limita o histórico
-    while (historico.length > MAX_HISTORICO_AUDIO) {
-      historico.shift();
-    }
-
-    // Limita a quantidade de conversas guardadas
-    if (historicosAudio.size > 100) {
-      const primeira = historicosAudio.keys().next().value;
-
-      historicosAudio.delete(primeira);
-    }
-
-    console.log(`Áudio enviado para ${nome}.`);
+    console.log(`Resposta em texto enviada para ${nome} (${usuarioId}).`);
 
   } catch (error) {
-    console.error('Erro no sistema de conversa por áudio:', error);
+    console.error('Erro no sistema de conversa por texto:', error);
+
+    if (historico.length > 0) {
+      historico.pop();
+    }
+
+    await message.reply({
+      content: 'ops, tive um probleminha pra responder agora. tenta me chamar de novo daqui a pouquinho.',
+      allowedMentions: {
+        parse: [],
+        repliedUser: false
+      }
+    }).catch(() => {});
+
+  } finally {
+    if (indicadorDigitacao) {
+      clearInterval(indicadorDigitacao);
+    }
   }
 }
 
 // Listener independente.
-// Não altera o listener existente do !container.
 client.on('messageCreate', async message => {
-  await processarConversaAudio(message);
+  await processarConversaTexto(message);
 });
 
 // ==========================================
-// FIM DO SISTEMA DE CONVERSA POR ÁUDIO
+// FIM DO SISTEMA DE CONVERSA POR TEXTO
 // ==========================================
+
 client.login(TOKEN);
