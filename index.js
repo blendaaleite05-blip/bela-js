@@ -940,7 +940,7 @@ client.on('messageCreate', async message => {
 // SISTEMA DE CONVERSA POR TEXTO COM GEMINI
 // ==========================================
 
-const GEMINI_TEXT_MODEL = 'gemini-2.5-flash';
+const GEMINI_TEXT_MODEL = 'gemini-3.0-flash';
 const MAX_HISTORICO_TEXTO = 16;
 
 const historicosTexto = new Map();
