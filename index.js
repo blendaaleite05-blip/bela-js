@@ -674,7 +674,7 @@ client.on('interactionCreate', async interaction => {
     'Qual membro receberá as Coins?\n' +
     'Mencione o usuário abaixo.'
   );
-    
+        }
     if (
       interaction.isButton() &&
       interaction.customId === 'snoweco_remover'
