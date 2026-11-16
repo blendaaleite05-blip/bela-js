@@ -28,6 +28,7 @@ const {
 
 const { joinVoiceChannel } = require('@discordjs/voice');
 const express = require('express');
+const { createCanvas, loadImage } = require('@napi-rs/canvas');
 const {
   initDatabase,
   getOrCreateWallet
