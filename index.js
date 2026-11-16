@@ -580,7 +580,22 @@ client.on('interactionCreate', async interaction => {
     ) {
       return await openPrivateEditor(interaction);
     }
+    if (
+      interaction.isButton() &&
+      interaction.customId.startsWith('snowadmin_')
+    ) {
+      if (interaction.user.id !== OWNER_ID) {
+        return interaction.reply({
+          content: 'Você não tem autorização para utilizar este painel.',
+          flags: MessageFlags.Ephemeral
+        });
+      }
 
+      return interaction.reply({
+        content: 'Esta seção está em construção. Em breve estará disponível!',
+        flags: MessageFlags.Ephemeral
+      });
+    }
     // Botões de cargos dos painéis publicados
     if (
       interaction.isButton() &&
