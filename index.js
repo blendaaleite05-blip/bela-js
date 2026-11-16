@@ -123,27 +123,29 @@ function addElement(session, element) {
     title: 1,
     text: 1,
     banner: 1,
-    thumbnail: 2,
+    thumbnail: 3,
     separator: 1,
-    role: 2
+    role: 3
   };
 
-  const total = session.elements.reduce(
-    (soma, item) => soma + (custos[item.type] || 1),
+  const totalAtual = 1 + session.elements.reduce(
+    (total, item) => total + (custos[item.type] || 1),
     0
   );
 
   const custoNovo = custos[element.type] || 1;
 
-  if (total + custoNovo > MAX_ELEMENTOS) {
-    return false;
+  if (totalAtual + custoNovo > MAX_ELEMENTOS) {
+    throw new Error(
+      'Limite de 40 componentes atingido. Remova algum elemento antes de adicionar outro.'
+    );
   }
 
   session.elements.push(element);
   session.selected = session.elements.length - 1;
 
   return true;
-}
+    }
 
 function buildPublishedContainer(session) {
   if (!session.elements.length) {
@@ -700,54 +702,64 @@ client.on('interactionCreate', async interaction => {
       }
 
       // Publicar
-      if (id === 'ed_publish') {
-        if (!session.channelId) {
-          return interaction.reply({
-            content: 'Primeiro escolha o canal no campo **Definir canal de publicação**.',
-            flags: MessageFlags.Ephemeral
-          });
-        }
+if (id === 'ed_publish') {
+  if (!session.channelId) {
+    return interaction.reply({
+      content: 'Primeiro escolha o canal no campo **Definir canal de publicação**.',
+      flags: MessageFlags.Ephemeral
+    });
+  }
 
-        if (!session.elements.length) {
-          return interaction.reply({
-            content: 'Adicione pelo menos um elemento antes de publicar.',
-            flags: MessageFlags.Ephemeral
-          });
-        }
+  if (!session.elements.length) {
+    return interaction.reply({
+      content: 'Adicione pelo menos um elemento antes de publicar.',
+      flags: MessageFlags.Ephemeral
+    });
+  }
 
-        const channel = await interaction.guild.channels
-          .fetch(session.channelId)
-          .catch(() => null);
+  await interaction.deferReply({
+    flags: MessageFlags.Ephemeral
+  });
 
-        if (!channel?.isTextBased() || !channel.send) {
-          return interaction.reply({
-            content: 'O canal selecionado não está disponível.',
-            flags: MessageFlags.Ephemeral
-          });
-        }
+  try {
+    const channel = await interaction.guild.channels
+      .fetch(session.channelId)
+      .catch(() => null);
 
-        const permissions = channel.permissionsFor(client.user);
+    if (!channel?.isTextBased() || !channel.send) {
+      return interaction.editReply({
+        content: 'O canal selecionado não está disponível.'
+      });
+    }
 
-        if (
-          !permissions?.has(PermissionFlagsBits.ViewChannel) ||
-          !permissions.has(PermissionFlagsBits.SendMessages)
-        ) {
-          return interaction.reply({
-            content: 'Não tenho permissão para ver e enviar mensagens nesse canal.',
-            flags: MessageFlags.Ephemeral
-          });
-        }
+    const permissions = channel.permissionsFor(client.user);
 
-        await channel.send({
-          components: [buildPublishedContainer(session)],
-          flags: MessageFlags.IsComponentsV2
-        });
+    if (
+      !permissions?.has(PermissionFlagsBits.ViewChannel) ||
+      !permissions.has(PermissionFlagsBits.SendMessages)
+    ) {
+      return interaction.editReply({
+        content: 'Não tenho permissão para ver e enviar mensagens nesse canal.'
+      });
+    }
 
-        return interaction.reply({
-          content: `Painel publicado em ${channel}.`,
-          flags: MessageFlags.Ephemeral
-        });
-      }
+    await channel.send({
+      components: [buildPublishedContainer(session)],
+      flags: MessageFlags.IsComponentsV2
+    });
+
+    return interaction.editReply({
+      content: `Painel publicado em ${channel}.`
+    });
+
+  } catch (error) {
+    console.error('Erro ao publicar container:', error);
+
+    return interaction.editReply({
+      content: error.message || 'Não foi possível publicar o painel.'
+    });
+  }
+    }
 
       // Canal
       if (id === 'ed_channel') {
