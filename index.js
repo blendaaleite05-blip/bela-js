@@ -634,6 +634,21 @@ client.on('interactionCreate', async interaction => {
     }
         if (
       interaction.isButton() &&
+      interaction.customId === 'snoweco_voltar'
+    ) {
+      if (interaction.user.id !== OWNER_ID) {
+        return interaction.reply({
+          content: 'Você não tem autorização para utilizar este painel.',
+          flags: MessageFlags.Ephemeral
+        });
+      }
+
+      return interaction.update({
+        components: [buildSnowAdminPanel()]
+      });
+        }
+        if (
+      interaction.isButton() &&
       interaction.customId === 'snoweco_adicionar'
     ) {
       if (interaction.user.id !== OWNER_ID) {
