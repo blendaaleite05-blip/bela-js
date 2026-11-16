@@ -980,7 +980,7 @@ async function gerarImagemPerfil(member, saldo) {
     // Nome
   ctx.fillStyle = '#ffffff';
   ctx.font = 'bold 38px Arial';
-  ctx.fillText((user.member?.displayName || user.username).slice(0, 24), 250, 125);
+  ctx.fillText((member.displayName || user.username).slice(0, 24), 250, 125);
 
   // Bio padrão
   ctx.fillStyle = '#9298a5';
