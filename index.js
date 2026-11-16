@@ -946,7 +946,8 @@ if (id === 'ed_publish') {
 // SNOW SYSTEM — GERADOR DE PERFIL
 // ==========================================
 
-async function gerarImagemPerfil(user, saldo) {
+async function gerarImagemPerfil(member, saldo) {
+  const user = member.user;
   const canvas = createCanvas(1000, 560);
   const ctx = canvas.getContext('2d');
 
@@ -1039,8 +1040,7 @@ client.on('messageCreate', async message => {
 
     const saldo = BigInt(wallet.balance).toLocaleString('pt-BR');
 
-const imagem = await gerarImagemPerfil(message.author, saldo);
-
+const imagem = await gerarImagemPerfil(message.member, saldo);
 await message.reply({
   files: [
     {
