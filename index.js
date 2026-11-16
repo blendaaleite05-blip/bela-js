@@ -32,7 +32,8 @@ const { createCanvas, loadImage } = require('@napi-rs/canvas');
 const {
   initDatabase,
   getOrCreateWallet,
-  addCoins
+  addCoins,
+  removeCoins
 } = require('./database');
 // Servidor HTTP exigido pelo Render
 const app = express();
