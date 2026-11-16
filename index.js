@@ -71,7 +71,7 @@ const client = new Client({
 });
 
 const sessoes = new Map();
-
+const sessoesCoins = new Map();
 const comandos = [
   new SlashCommandBuilder()
     .setName('container')
