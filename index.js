@@ -45,7 +45,7 @@ const SERVIDOR_ID = '920817412050403399';
 const CANAL_VOZ_ID = '1540757131144208444';
 const PREFIXO = '!';
 const COR_PADRAO = 0xB58AD9;
-const MAX_ELEMENTOS = Infinity;
+const MAX_ELEMENTOS = 40;
 const PREFIXO_ID = 'painel_editor_';
 
 if (!TOKEN) {
@@ -928,7 +928,7 @@ if (id === 'ed_publish') {
       !interaction.deferred
     ) {
       await interaction.reply({
-        content: 'Ocorreu um erro. Confira os logs do Render.',
+        content: error.message || 'Ocorreu um erro. Confira os logs do Render.',
         flags: MessageFlags.Ephemeral
       }).catch(() => {});
     }
