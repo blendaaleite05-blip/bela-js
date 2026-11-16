@@ -1036,12 +1036,16 @@ client.on('messageCreate', async message => {
 
     const saldo = BigInt(wallet.balance).toLocaleString('pt-BR');
 
-    await message.reply({
-      content:
-        `# ❄️ CARTEIRA DE COINS\n` +
-        `**Membro:** ${message.author}\n` +
-        `**Saldo:** ${saldo} Coins`
-    });
+const imagem = await gerarImagemPerfil(message.author, saldo);
+
+await message.reply({
+  files: [
+    {
+      attachment: imagem,
+      name: 'perfil.png'
+    }
+  ]
+});
 
   } catch (error) {
     console.error('Erro ao consultar carteira:', error);
