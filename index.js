@@ -396,7 +396,11 @@ async function showImageModal(interaction, modalId, title, withText = false) {
 // Conexão do bot e entrada na call
 client.once('clientReady', async () => {
   console.log(`Bot conectado como ${client.user.tag}`);
-
+  try {
+    await initDatabase();
+  } catch (error) {
+    console.error('Erro ao inicializar Snow System:', error);
+  }
   client.user.setPresence({
     activities: [
       {
