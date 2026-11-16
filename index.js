@@ -119,7 +119,25 @@ function makeTextModal(id, title, fields) {
 }
 
 function addElement(session, element) {
-  if (session.elements.length >= MAX_ELEMENTOS) return false;
+  const custos = {
+    title: 1,
+    text: 1,
+    banner: 1,
+    thumbnail: 2,
+    separator: 1,
+    role: 2
+  };
+
+  const total = session.elements.reduce(
+    (soma, item) => soma + (custos[item.type] || 1),
+    0
+  );
+
+  const custoNovo = custos[element.type] || 1;
+
+  if (total + custoNovo > MAX_ELEMENTOS) {
+    return false;
+  }
 
   session.elements.push(element);
   session.selected = session.elements.length - 1;
