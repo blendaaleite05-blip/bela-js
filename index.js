@@ -558,7 +558,22 @@ async function toggleRole(interaction) {
 // Interações do editor
 client.on('interactionCreate', async interaction => {
   try {
+    if (
+      interaction.isChatInputCommand() &&
+      interaction.commandName === 'snowadmin'
+    ) {
+      if (interaction.user.id !== OWNER_ID) {
+        return interaction.reply({
+          content: 'Você não tem autorização para acessar este painel.',
+          flags: MessageFlags.Ephemeral
+        });
+      }
 
+      return interaction.reply({
+        components: [buildSnowAdminPanel()],
+        flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral
+      });
+          }
     if (
       interaction.isChatInputCommand() &&
       interaction.commandName === 'container'
