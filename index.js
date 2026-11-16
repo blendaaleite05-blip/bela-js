@@ -126,6 +126,42 @@ function makeTextModal(id, title, fields) {
 
   return modal;
 }
+function buildSnowAdminPanel() {
+  const container = new ContainerBuilder()
+    .setAccentColor(0x8CCBFF)
+    .addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(
+        '# ❄️ SNOW SYSTEM\n' +
+        '### Painel administrativo\n' +
+        'Bem-vinda ao centro de gerenciamento do sistema.\n\n' +
+        '**Selecione uma categoria abaixo para continuar.**'
+      )
+    )
+    .addSeparatorComponents(
+      new SeparatorBuilder()
+        .setDivider(true)
+        .setSpacing(SeparatorSpacingSize.Large)
+    )
+    .addActionRowComponents(
+      new ActionRowBuilder().addComponents(
+        makeButton('snowadmin_economia', 'Economia'),
+        makeButton('snowadmin_perfis', 'Perfis')
+      )
+    )
+    .addActionRowComponents(
+      new ActionRowBuilder().addComponents(
+        makeButton('snowadmin_emojis', 'Emojis'),
+        makeButton('snowadmin_badges', 'Badges')
+      )
+    )
+    .addActionRowComponents(
+      new ActionRowBuilder().addComponents(
+        makeButton('snowadmin_config', 'Configurações')
+      )
+    );
+
+  return container;
+      }
 
 function addElement(session, element) {
   const custos = {
