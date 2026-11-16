@@ -976,11 +976,15 @@ async function gerarImagemPerfil(user, saldo) {
   ctx.drawImage(avatar, 70, 70, 150, 150);
   ctx.restore();
 
-  // Nome
+    // Nome
   ctx.fillStyle = '#ffffff';
   ctx.font = 'bold 38px Arial';
   ctx.fillText(user.username.slice(0, 24), 250, 125);
 
+  // Bio padrão
+  ctx.fillStyle = '#9298a5';
+  ctx.font = '20px Arial';
+  ctx.fillText('vivendo um dia de cada vez.', 250, 165);
   ctx.fillStyle = '#9298a5';
   ctx.font = '20px Arial';
   ctx.fillText('SNOW SYSTEM', 250, 165);
