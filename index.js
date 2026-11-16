@@ -942,6 +942,45 @@ if (id === 'ed_publish') {
   }
 });
 
+ // ==========================================
+ // SNOW SYSTEM — CARTEIRA DE COINS
+ // ==========================================
+
+client.on('messageCreate', async message => {
+  if (message.author.bot || !message.guild) return;
+
+  const comando = message.content.trim().toLowerCase();
+
+  if (comando !== 'bcarteira') return;
+
+  try {
+    const wallet = await getOrCreateWallet(
+      message.guild.id,
+      message.author.id
+    );
+
+    const saldo = BigInt(wallet.balance).toLocaleString('pt-BR');
+
+    await message.reply({
+      content:
+        `# ❄️ CARTEIRA DE COINS\n` +
+        `**Membro:** ${message.author}\n` +
+        `**Saldo:** ${saldo} Coins`
+    });
+
+  } catch (error) {
+    console.error('Erro ao consultar carteira:', error);
+
+    await message.reply(
+      'Não foi possível consultar sua carteira agora. Tente novamente em instantes.'
+    );
+  }
+});
+
+// ==========================================
+// FIM DA CARTEIRA DE COINS
+// ==========================================
+      
 // Comando tradicional !container
 client.on('messageCreate', async message => {
   if (message.author.bot || !message.guild) return;
