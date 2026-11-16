@@ -162,7 +162,35 @@ function buildSnowAdminPanel() {
 
   return container;
       }
-
+function buildSnowEconomyPanel() {
+  return new ContainerBuilder()
+    .setAccentColor(0x8CCBFF)
+    .addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(
+        '# 💰 ECONOMIA\n' +
+        '### Gerenciamento de Coins\n' +
+        'Gerencie os saldos dos membros do servidor.\n\n' +
+        '**Selecione uma ação:**'
+      )
+    )
+    .addSeparatorComponents(
+      new SeparatorBuilder()
+        .setDivider(true)
+        .setSpacing(SeparatorSpacingSize.Large)
+    )
+    .addActionRowComponents(
+      new ActionRowBuilder().addComponents(
+        makeButton('snoweco_adicionar', 'Adicionar Coins', ButtonStyle.Success),
+        makeButton('snoweco_remover', 'Remover Coins', ButtonStyle.Danger)
+      )
+    )
+    .addActionRowComponents(
+      new ActionRowBuilder().addComponents(
+        makeButton('snoweco_consultar', 'Consultar saldo'),
+        makeButton('snoweco_voltar', 'Voltar')
+      )
+    );
+  }
 function addElement(session, element) {
   const custos = {
     title: 1,
