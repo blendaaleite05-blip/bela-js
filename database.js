@@ -73,10 +73,59 @@ async function getOrCreateWallet(guildId, userId) {
 
   return wallet.rows[0];
 }
+async function addCoins(guildId, userId, amount) {
+  const client = await pool.connect();
 
+  try {
+    await client.query('BEGIN');
+
+    await client.query(
+      `
+        INSERT INTO coins_wallets (guild_id, user_id)
+        VALUES ($1, $2)
+        ON CONFLICT (guild_id, user_id) DO NOTHING;
+      `,
+      [guildId, userId]
+    );
+
+    const result = await client.query(
+      `
+        UPDATE coins_wallets
+        SET balance = balance + $3::numeric,
+            updated_at = NOW()
+        WHERE guild_id = $1 AND user_id = $2
+        RETURNING balance;
+      `,
+      [guildId, userId, amount.toString()]
+    );
+
+    const balance = result.rows[0].balance;
+
+    await client.query(
+      `
+        INSERT INTO coins_transactions
+          (guild_id, user_id, amount, balance_after, type, description)
+        VALUES ($1, $2, $3, $4, 'admin_add', 'Adição administrativa de Coins');
+      `,
+      [guildId, userId, amount.toString(), balance]
+    );
+
+    await client.query('COMMIT');
+
+    return balance;
+
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+
+  } finally {
+    client.release();
+  }
+}
 module.exports = {
   pool,
   initDatabase,
-  getOrCreateWallet
+  getOrCreateWallet,
+  addCoins
 };
               
