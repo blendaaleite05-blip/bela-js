@@ -28,7 +28,10 @@ const {
 
 const { joinVoiceChannel } = require('@discordjs/voice');
 const express = require('express');
-
+const {
+  initDatabase,
+  getOrCreateWallet
+} = require('./database');
 // Servidor HTTP exigido pelo Render
 const app = express();
 
