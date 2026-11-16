@@ -122,10 +122,60 @@ async function addCoins(guildId, userId, amount) {
     client.release();
   }
 }
+
+async function removeCoins(guildId, userId, amount) {
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    const result = await client.query(
+      `
+        UPDATE coins_wallets
+        SET balance = balance - $3::numeric,
+            updated_at = NOW()
+        WHERE guild_id = $1
+          AND user_id = $2
+          AND balance >= $3::numeric
+        RETURNING balance;
+      `,
+      [guildId, userId, amount.toString()]
+    );
+
+    if (result.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return null;
+    }
+
+    const balance = result.rows[0].balance;
+
+    await client.query(
+      `
+        INSERT INTO coins_transactions
+          (guild_id, user_id, amount, balance_after, type, description)
+        VALUES ($1, $2, $3, $4, 'admin_remove', 'Remoção administrativa de Coins');
+      `,
+      [guildId, userId, amount.toString(), balance]
+    );
+
+    await client.query('COMMIT');
+
+    return balance;
+
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+
+  } finally {
+    client.release();
+  }
+    }
+
 module.exports = {
   pool,
   initDatabase,
   getOrCreateWallet,
-  addCoins
+  addCoins,
+  removeCoins
 };
               
