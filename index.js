@@ -74,7 +74,11 @@ const comandos = [
   new SlashCommandBuilder()
     .setName('container')
     .setDescription('Abrir o criador de painéis')
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
+
+  new SlashCommandBuilder()
+    .setName('snowadmin')
+    .setDescription('Abrir o painel administrativo do Snow System')
 ];
 
 async function registrarComandos() {
