@@ -987,7 +987,6 @@ async function gerarImagemPerfil(user, saldo) {
   ctx.fillText('vivendo um dia de cada vez.', 250, 165);
   ctx.fillStyle = '#9298a5';
   ctx.font = '20px Arial';
-  ctx.fillText('SNOW SYSTEM', 250, 165);
 
   // Separador
   ctx.fillStyle = '#343944';
