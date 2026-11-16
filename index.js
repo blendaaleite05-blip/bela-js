@@ -648,9 +648,33 @@ client.on('interactionCreate', async interaction => {
       });
         }
         if (
-      interaction.isButton() &&
-      interaction.customId === 'snoweco_adicionar'
-    ) {
+  interaction.isButton() &&
+  interaction.customId === 'snoweco_adicionar'
+) {
+  if (interaction.user.id !== OWNER_ID) {
+    return interaction.reply({
+      content: 'Você não tem autorização para utilizar este painel.',
+      flags: MessageFlags.Ephemeral
+    });
+  }
+
+  sessoesCoins.set(interaction.user.id, {
+    guildId: interaction.guild.id,
+    channelId: interaction.channel.id,
+    etapa: 'membro'
+  });
+
+  await interaction.reply({
+    content: 'Conversa iniciada! Continue no canal.',
+    flags: MessageFlags.Ephemeral
+  });
+
+  return interaction.channel.send(
+    '💰 **ADICIONAR COINS**\n\n' +
+    'Qual membro receberá as Coins?\n' +
+    'Mencione o usuário abaixo.'
+  );
+      } {
       if (interaction.user.id !== OWNER_ID) {
         return interaction.reply({
           content: 'Você não tem autorização para utilizar este painel.',
