@@ -660,6 +660,36 @@ client.on('interactionCreate', async interaction => {
         ])
       );
                       } 
+    
+    if (
+      interaction.isButton() &&
+      interaction.customId === 'snoweco_remover'
+    ) {
+      if (interaction.user.id !== OWNER_ID) {
+        return interaction.reply({
+          content: 'Você não tem autorização para utilizar este painel.',
+          flags: MessageFlags.Ephemeral
+        });
+      }
+
+      return interaction.showModal(
+        makeTextModal('snoweco_modal_remover', 'Remover Coins', [
+          {
+            id: 'user_id',
+            label: 'ID do membro ou menção',
+            placeholder: 'ID ou @membro',
+            max: 30
+          },
+          {
+            id: 'amount',
+            label: 'Quantidade de Coins',
+            placeholder: 'Ex.: 1000',
+            max: 30
+          }
+        ])
+      );
+            }
+          
     // Botões de cargos dos painéis publicados
     if (
       interaction.isButton() &&
