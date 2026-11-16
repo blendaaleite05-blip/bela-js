@@ -619,6 +619,12 @@ client.on('interactionCreate', async interaction => {
         });
       }
 
+            if (interaction.customId === 'snowadmin_economia') {
+        return interaction.update({
+          components: [buildSnowEconomyPanel()]
+        });
+      }
+
       return interaction.reply({
         content: 'Esta seção está em construção. Em breve estará disponível!',
         flags: MessageFlags.Ephemeral
