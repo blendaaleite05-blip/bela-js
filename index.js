@@ -1047,6 +1047,70 @@ if (id === 'ed_publish') {
           }
 
       const session = sessoes.get(interaction.user.id);
+      
+      if (interaction.customId === 'snoweco_modal_remover') {
+        if (interaction.user.id !== OWNER_ID) {
+          return interaction.reply({
+            content: 'Você não tem autorização para utilizar este formulário.',
+            flags: MessageFlags.Ephemeral
+          });
+        }
+
+        const rawUser = interaction.fields.getTextInputValue('user_id').trim();
+        const rawAmount = interaction.fields.getTextInputValue('amount').trim();
+        const userId = rawUser.replace(/[<@!>]/g, '');
+
+        if (!/^\d{17,20}$/.test(userId)) {
+          return interaction.reply({
+            content: 'Informe um ID ou uma menção válida do Discord.',
+            flags: MessageFlags.Ephemeral
+          });
+        }
+
+        if (!/^\d{1,30}$/.test(rawAmount) || BigInt(rawAmount) <= 0n) {
+          return interaction.reply({
+            content: 'Informe uma quantidade válida de Coins.',
+            flags: MessageFlags.Ephemeral
+          });
+        }
+
+        if (!interaction.guild) {
+          return interaction.reply({
+            content: 'Este formulário só pode ser usado dentro do servidor.',
+            flags: MessageFlags.Ephemeral
+          });
+        }
+
+        const member = await interaction.guild.members.fetch(userId).catch(() => null);
+
+        if (!member) {
+          return interaction.reply({
+            content: 'Não encontrei esse membro neste servidor.',
+            flags: MessageFlags.Ephemeral
+          });
+        }
+
+        const balance = await removeCoins(
+          interaction.guild.id,
+          userId,
+          BigInt(rawAmount)
+        );
+
+        if (balance === null) {
+          return interaction.reply({
+            content: 'Esse membro não possui Coins suficientes para essa remoção.',
+            flags: MessageFlags.Ephemeral
+          });
+        }
+
+        return interaction.reply({
+          content:
+            `Foram removidos **${BigInt(rawAmount).toLocaleString('pt-BR')} Coins** de ${member}.\n` +
+            `Novo saldo: **${BigInt(balance).toLocaleString('pt-BR')} Coins**.`,
+          flags: MessageFlags.Ephemeral
+        });
+          }
+            
 
       if (!session) {
         return interaction.reply({
