@@ -942,7 +942,81 @@ if (id === 'ed_publish') {
     }
   }
 });
+// ==========================================
+// SNOW SYSTEM — GERADOR DE PERFIL
+// ==========================================
 
+async function gerarImagemPerfil(user, saldo) {
+  const canvas = createCanvas(1000, 560);
+  const ctx = canvas.getContext('2d');
+
+  // Fundo
+  ctx.fillStyle = '#111318';
+  ctx.fillRect(0, 0, 1000, 560);
+
+  // Cartão principal
+  ctx.fillStyle = '#1b1e25';
+  ctx.beginPath();
+  ctx.roundRect(30, 30, 940, 500, 28);
+  ctx.fill();
+
+  // Avatar
+  const avatarURL = user.displayAvatarURL({
+    extension: 'png',
+    size: 256
+  });
+
+  const avatar = await loadImage(avatarURL);
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(145, 145, 75, 0, Math.PI * 2);
+  ctx.closePath();
+  ctx.clip();
+  ctx.drawImage(avatar, 70, 70, 150, 150);
+  ctx.restore();
+
+  // Nome
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 38px Arial';
+  ctx.fillText(user.username.slice(0, 24), 250, 125);
+
+  ctx.fillStyle = '#9298a5';
+  ctx.font = '20px Arial';
+  ctx.fillText('SNOW SYSTEM', 250, 165);
+
+  // Separador
+  ctx.fillStyle = '#343944';
+  ctx.fillRect(70, 260, 860, 2);
+
+  // Estatísticas
+  const stats = [
+    { emoji: '💰', valor: saldo, x: 90, y: 340 },
+    { emoji: '💀', valor: '0', x: 530, y: 340 },
+    { emoji: '🗣️', valor: '—', x: 90, y: 455 },
+    { emoji: '⭐', valor: '0', x: 530, y: 455 }
+  ];
+
+  for (const stat of stats) {
+    ctx.fillStyle = '#292e38';
+    ctx.beginPath();
+    ctx.roundRect(stat.x, stat.y - 55, 380, 85, 16);
+    ctx.fill();
+
+    ctx.font = '30px Arial';
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(stat.emoji, stat.x + 22, stat.y);
+
+    ctx.font = 'bold 28px Arial';
+    ctx.fillText(stat.valor, stat.x + 85, stat.y);
+  }
+
+  return canvas.toBuffer('image/png');
+}
+
+// ==========================================
+// FIM DO GERADOR DE PERFIL
+// ==========================================
  // ==========================================
  // SNOW SYSTEM — CARTEIRA DE COINS
  // ==========================================
