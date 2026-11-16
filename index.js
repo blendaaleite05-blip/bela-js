@@ -747,6 +747,51 @@ client.on('interactionCreate', async interaction => {
     ) {
       const session = sessoes.get(interaction.user.id);
 
+      if (interaction.customId === 'snoweco_modal_consultar') {
+        if (interaction.user.id !== OWNER_ID) {
+          return interaction.reply({
+            content: 'Você não tem autorização para utilizar este formulário.',
+            flags: MessageFlags.Ephemeral
+          });
+        }
+
+        const rawUser = interaction.fields.getTextInputValue('user_id').trim();
+        const userId = rawUser.replace(/[<@!>]/g, '');
+
+        if (!/^\d{17,20}$/.test(userId)) {
+          return interaction.reply({
+            content: 'Informe um ID ou uma menção válida do Discord.',
+            flags: MessageFlags.Ephemeral
+          });
+        }
+
+        if (!interaction.guild) {
+          return interaction.reply({
+            content: 'Este formulário só pode ser usado dentro do servidor.',
+            flags: MessageFlags.Ephemeral
+          });
+        }
+
+        const member = await interaction.guild.members.fetch(userId).catch(() => null);
+
+        if (!member) {
+          return interaction.reply({
+            content: 'Não encontrei esse membro neste servidor.',
+            flags: MessageFlags.Ephemeral
+          });
+        }
+
+        const wallet = await getOrCreateWallet(interaction.guild.id, userId);
+        const balance = BigInt(wallet.balance);
+
+        return interaction.reply({
+          content:
+            `**Carteira de ${member.user.username}**\n` +
+            `💰 Saldo: **${balance.toLocaleString('pt-BR')} Coins**`,
+          flags: MessageFlags.Ephemeral
+        });
+        }
+            
       if (!session) {
         return interaction.reply({
           content: 'Sua sessão expirou. Abra /container novamente.',
