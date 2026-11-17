@@ -24,7 +24,7 @@ const {
   ChannelType,
   StringSelectMenuBuilder,
   RoleSelectMenuBuilder,
-UserSelectMenuBuilder
+  UserSelectMenuBuilder
 } = require('discord.js');
 
 const { joinVoiceChannel } = require('@discordjs/voice');
