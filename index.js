@@ -1393,6 +1393,7 @@ async function gerarImagemPerfil(member, saldo) {
  // SNOW SYSTEM — CARTEIRA DE COINS
  // ==========================================
 
+
 client.on('messageCreate', async message => {
   if (message.author.bot || !message.guild) return;
   if (message.author.id !== OWNER_ID) return;
@@ -1408,6 +1409,102 @@ client.on('messageCreate', async message => {
     return message.reply('Operação cancelada.');
   }
 
+  // FLUXO DE REMOVER COINS
+  if (sessao.acao === 'remover') {
+    if (sessao.etapa === 'membro') {
+      const membro = message.mentions.members.first();
+
+      if (!membro) {
+        return message.reply('Mencione um membro válido.');
+      }
+
+      sessao.membroId = membro.id;
+      sessao.etapa = 'quantidade';
+
+      return message.reply(
+        `Membro selecionado: ${membro}\n\n` +
+        'Agora informe a quantidade de Coins que deseja remover.\n' +
+        'Exemplos: `1000`, `1k`, `1,5m` ou `2b`.'
+      );
+    }
+
+    if (sessao.etapa === 'quantidade') {
+      const texto = message.content
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, '')
+        .replace(',', '.');
+
+      const formato = texto.match(/^(\d+(?:\.\d+)?)([kmb])?$/);
+
+      if (!formato) {
+        return message.reply(
+          'Quantidade inválida! Use exemplos como `1000`, `1k`, `1,5m` ou `2b`.'
+        );
+      }
+
+      const multiplicadores = {
+        '': 1n,
+        k: 1000n,
+        m: 1000000n,
+        b: 1000000000n
+      };
+
+      const partes = formato[1].split('.');
+      const casas = partes[1] || '';
+      const numero = BigInt(partes[0] + casas);
+      const multiplicador = multiplicadores[formato[2] || ''];
+      const divisor = 10n ** BigInt(casas.length);
+
+      const total = numero * multiplicador;
+
+      if (total % divisor !== 0n || total === 0n) {
+        return message.reply('Informe uma quantidade válida e maior que zero.');
+      }
+
+      const quantidade = total / divisor;
+
+      try {
+        const membro = await message.guild.members.fetch(sessao.membroId);
+        const saldo = await removeCoins(
+          message.guild.id,
+          membro.id,
+          quantidade
+        );
+
+        sessoesCoins.delete(message.author.id);
+
+        if (saldo === null) {
+          return message.reply(
+            `O membro ${membro} não possui Coins suficientes para essa remoção.`
+          );
+        }
+
+        return message.reply({
+          content:
+            `✅ **COINS REMOVIDAS COM SUCESSO!**\n\n` +
+            `👤 **Membro:** ${membro}\n` +
+            `💸 **Coins removidas:** ${quantidade.toLocaleString('pt-BR')}\n` +
+            `💳 **Novo saldo:** ${BigInt(saldo).toLocaleString('pt-BR')} Coins`,
+          allowedMentions: {
+            users: [membro.id]
+          }
+        });
+
+      } catch (error) {
+        console.error('Erro ao remover Coins:', error);
+        sessoesCoins.delete(message.author.id);
+
+        return message.reply(
+          'Não foi possível remover as Coins. Tente novamente.'
+        );
+      }
+    }
+
+    return;
+  }
+
+  // FLUXO DE ADICIONAR COINS
   const membro = message.mentions.members.first();
 
   if (!membro) {
@@ -1450,7 +1547,7 @@ client.on('messageCreate', async message => {
         `✅ **COINS ADICIONADAS COM SUCESSO!**\n\n` +
         `👤 **Membro:** ${membro}\n` +
         `🎲 **Valor sorteado:** ${sorteio.toLocaleString('pt-BR')} ${formato[1].toUpperCase()}\n` +
-        `💰 **Coins adicionados:** ${quantidade.toLocaleString('pt-BR')} Coins\n` +
+        `💰 **Coins adicionadas:** ${quantidade.toLocaleString('pt-BR')} Coins\n` +
         `💳 **Novo saldo de ${membro}:** ${BigInt(saldo).toLocaleString('pt-BR')} Coins`,
       allowedMentions: {
         users: [membro.id]
@@ -1467,6 +1564,7 @@ client.on('messageCreate', async message => {
     );
   }
 });
+
 
 client.on('messageCreate', async message => {
   if (message.author.bot || !message.guild) return;
