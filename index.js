@@ -670,10 +670,10 @@ client.on('interactionCreate', async interaction => {
   });
 
   return interaction.channel.send(
-    '💰 **ADICIONAR COINS**\n\n' +
-    'Qual membro receberá as Coins?\n' +
-    'Mencione o usuário abaixo.'
-  );
+  '💰 **ADICIONAR COINS**\n\n' +
+  'Mencione o membro e escolha a unidade:\n' +
+  '`quebras k`, `quebras m` ou `quebras b`.'
+);
         }
     if (
       interaction.isButton() &&
