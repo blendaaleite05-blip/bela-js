@@ -758,7 +758,7 @@ client.on('interactionCreate', async interaction => {
 
         return interaction.update({
           content:
-            `💳 **SALDO DE ${membro.user.username}**\n\n` +
+            `💳 **SALDO DE <@${userId}>**\n\n` +
             `💰 **Coins:** ${saldo.toLocaleString('pt-BR')}`,
           components: []
         });
