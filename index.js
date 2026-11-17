@@ -1392,14 +1392,6 @@ async function gerarImagemPerfil(member, saldo) {
  // ==========================================
  // SNOW SYSTEM — CARTEIRA DE COINS
  // ==========================================
-client.on('messageCreate', async message => {
-  if (message.author.bot || !message.guild) return;
-  if (message.author.id !== OWNER_ID) return;
-
-  const sessao = sessoesCoins.get(message.author.id);
-
-  if (!sessao) return;
-  if (sessao.guildId !== message.guild.id) return;
 
 client.on('messageCreate', async message => {
   if (message.author.bot || !message.guild) return;
