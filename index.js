@@ -1400,6 +1400,15 @@ client.on('messageCreate', async message => {
 
   if (!sessao) return;
   if (sessao.guildId !== message.guild.id) return;
+
+client.on('messageCreate', async message => {
+  if (message.author.bot || !message.guild) return;
+  if (message.author.id !== OWNER_ID) return;
+
+  const sessao = sessoesCoins.get(message.author.id);
+
+  if (!sessao) return;
+  if (sessao.guildId !== message.guild.id) return;
   if (sessao.channelId !== message.channel.id) return;
 
   if (message.content.trim().toLowerCase() === 'cancelar') {
@@ -1407,105 +1416,66 @@ client.on('messageCreate', async message => {
     return message.reply('Operação cancelada.');
   }
 
-  // ETAPA 1 — ESCOLHER MEMBRO
-  if (sessao.etapa === 'membro') {
-    const membro = message.mentions.members.first();
+  const membro = message.mentions.members.first();
 
-    if (!membro) {
-      return message.reply('Mencione um membro válido do servidor.');
-    }
+  if (!membro) {
+    return message.reply('Mencione um membro válido.');
+  }
 
-    sessao.userId = membro.id;
-    sessao.membro = membro;
-    sessao.etapa = 'quantidade';
+  const texto = message.content
+    .replace(/<@!?\d+>/g, '')
+    .trim()
+    .toLowerCase();
+
+  const formato = texto.match(/^quebras?\s+([kmb])$/);
+
+  if (!formato) {
+    return message.reply(
+      'Unidade inválida! Use `quebras k`, `quebras m` ou `quebras b`.'
+    );
+  }
+
+  const multiplicadores = {
+    k: 1000n,
+    m: 1000000n,
+    b: 1000000000n
+  };
+
+  const sorteio = Math.floor(Math.random() * 5000) + 1;
+  const quantidade = BigInt(sorteio) * multiplicadores[formato[1]];
+
+  try {
+    const saldo = await addCoins(
+      message.guild.id,
+      membro.id,
+      quantidade
+    );
+
+    sessoesCoins.delete(message.author.id);
+
+    return message.reply({
+      content:
+        `✅ **COINS ADICIONADAS COM SUCESSO!**\n\n` +
+        `👤 **Membro:** ${membro}\n` +
+        `🎲 **Valor sorteado:** ${sorteio.toLocaleString('pt-BR')} ${formato[1].toUpperCase()}\n` +
+        `💰 **Coins adicionados:** ${quantidade.toLocaleString('pt-BR')} Coins\n` +
+        `💳 **Novo saldo de ${membro}:** ${BigInt(saldo).toLocaleString('pt-BR')} Coins`,
+      allowedMentions: {
+        users: [membro.id]
+      }
+    });
+
+  } catch (error) {
+    console.error('Erro ao adicionar Coins:', error);
+
+    sessoesCoins.delete(message.author.id);
 
     return message.reply(
-      `Membro selecionado: ${membro}.\n` +
-      'Agora, informe a quantidade de Coins que deseja adicionar.\n\n' +
-      '**Exemplos:**\n' +
-      '`100` ou `100 quebras`\n' +
-      '`1k` ou `1 quebra k`\n' +
-      '`2m` ou `2 quebras m`\n' +
-      '`5b` ou `5 quebras b`\n' +
-      '`1,5k` ou `1,5k quebras`\n\n' +
-      'Digite `cancelar` para interromper.'
+      'Não foi possível adicionar as Coins. Tente novamente.'
     );
-  }
-
-  // ETAPA 2 — INFORMAR QUANTIDADE
-  if (sessao.etapa === 'quantidade') {
-    const texto = message.content.trim().toLowerCase();
-
-    const formato = texto.match(
-      /^(\d+(?:[.,]\d+)?)\s*(?:(?:quebra|quebras)\s*([kmb])|([kmb])\s*(?:quebra|quebras)?|(?:quebra|quebras))?$/
-    );
-
-    if (!formato) {
-      return message.reply(
-        'Quantidade inválida! Exemplos: `100`, `1k`, `2m`, `5b` ou `1,5k`.'
-      );
-    }
-
-    const numero = formato[1].replace(',', '.');
-    const unidade = formato[2] || formato[3] || '';
-
-    const multiplicadores = {
-      '': 1n,
-      k: 1000n,
-      m: 1000000n,
-      b: 1000000000n
-    };
-
-    const partes = numero.split('.');
-    const casas = partes[1]?.length || 0;
-    const escala = 10n ** BigInt(casas);
-
-    const valorNumerico =
-      BigInt(partes[0]) * escala +
-      BigInt(partes[1] || '0');
-
-    const resultado =
-      valorNumerico * multiplicadores[unidade];
-
-    if (resultado <= 0n || resultado % escala !== 0n) {
-      return message.reply('Informe uma quantidade válida de Coins.');
-    }
-
-    const quantidade = resultado / escala;
-
-    try {
-      const saldo = await addCoins(
-        message.guild.id,
-        sessao.userId,
-        quantidade
-      );
-
-      const membro = sessao.membro;
-
-      sessoesCoins.delete(message.author.id);
-
-      return message.reply({
-        content:
-          `✅ **COINS ADICIONADAS COM SUCESSO!**\n\n` +
-          `👤 **Membro:** ${membro}\n` +
-          `💰 **Coins adicionados:** ${quantidade.toLocaleString('pt-BR')} Coins\n` +
-          `💳 **Novo saldo de ${membro}:** ${BigInt(saldo).toLocaleString('pt-BR')} Coins`,
-        allowedMentions: {
-          users: [membro.id]
-        }
-      });
-
-    } catch (error) {
-      console.error('Erro ao adicionar Coins:', error);
-
-      sessoesCoins.delete(message.author.id);
-
-      return message.reply(
-        'Não foi possível adicionar as Coins. Tente novamente.'
-      );
-    }
   }
 });
+
 client.on('messageCreate', async message => {
   if (message.author.bot || !message.guild) return;
 
