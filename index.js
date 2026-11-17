@@ -675,7 +675,7 @@ client.on('interactionCreate', async interaction => {
   '`quebras k`, `quebras m` ou `quebras b`.'
 );
         }
-    if (
+        if (
       interaction.isButton() &&
       interaction.customId === 'snoweco_remover'
     ) {
@@ -686,23 +686,23 @@ client.on('interactionCreate', async interaction => {
         });
       }
 
-      return interaction.showModal(
-        makeTextModal('snoweco_modal_remover', 'Remover Coins', [
-          {
-            id: 'user_id',
-            label: 'ID do membro ou menção',
-            placeholder: 'ID ou @membro',
-            max: 30
-          },
-          {
-            id: 'amount',
-            label: 'Quantidade de Coins',
-            placeholder: 'Ex.: 1000',
-            max: 30
-          }
-        ])
+      sessoesCoins.set(interaction.user.id, {
+        guildId: interaction.guild.id,
+        channelId: interaction.channel.id,
+        etapa: 'membro',
+        acao: 'remover'
+      });
+
+      await interaction.reply({
+        content: 'Conversa iniciada! Continue no canal.',
+        flags: MessageFlags.Ephemeral
+      });
+
+      return interaction.channel.send(
+        '💸 **REMOVER COINS**\n\n' +
+        'Mencione o membro que terá Coins removidas.'
       );
-            }
+        }
           
     if (
       interaction.isButton() &&
