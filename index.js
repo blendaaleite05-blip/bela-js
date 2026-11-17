@@ -704,6 +704,7 @@ client.on('interactionCreate', async interaction => {
       );
         }
           
+    
     if (
       interaction.isButton() &&
       interaction.customId === 'snoweco_consultar'
@@ -715,17 +716,23 @@ client.on('interactionCreate', async interaction => {
         });
       }
 
-      return interaction.showModal(
-        makeTextModal('snoweco_modal_consultar', 'Consultar saldo', [
-          {
-            id: 'user_id',
-            label: 'ID do membro ou menção',
-            placeholder: 'ID ou @membro',
-            max: 30
-          }
-        ])
+      sessoesCoins.set(interaction.user.id, {
+        guildId: interaction.guild.id,
+        channelId: interaction.channel.id,
+        etapa: 'consultar'
+      });
+
+      await interaction.reply({
+        content: 'Conversa iniciada! Continue no canal.',
+        flags: MessageFlags.Ephemeral
+      });
+
+      return interaction.channel.send(
+        '💳 **CONSULTAR SALDO**\n\n' +
+        'Mencione o membro que deseja consultar.'
       );
-  }
+    }
+
               
     // Botões de cargos dos painéis publicados
     if (
