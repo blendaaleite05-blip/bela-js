@@ -23,7 +23,8 @@ const {
   ChannelSelectMenuBuilder,
   ChannelType,
   StringSelectMenuBuilder,
-  RoleSelectMenuBuilder
+  RoleSelectMenuBuilder,
+UserSelectMenuBuilder
 } = require('discord.js');
 
 const { joinVoiceChannel } = require('@discordjs/voice');
@@ -705,6 +706,7 @@ client.on('interactionCreate', async interaction => {
         }
           
     
+    
     if (
       interaction.isButton() &&
       interaction.customId === 'snoweco_consultar'
@@ -716,24 +718,61 @@ client.on('interactionCreate', async interaction => {
         });
       }
 
-      sessoesCoins.set(interaction.user.id, {
-        guildId: interaction.guild.id,
-        channelId: interaction.channel.id,
-        etapa: 'consultar'
-      });
-
-      await interaction.reply({
-        content: 'Conversa iniciada! Continue no canal.',
+      return interaction.reply({
+        content: '💳 **CONSULTAR SALDO**\n\nSelecione o membro que deseja consultar:',
+        components: [
+          new ActionRowBuilder().addComponents(
+            new UserSelectMenuBuilder()
+              .setCustomId('snoweco_selecionar_membro')
+              .setPlaceholder('Escolha um membro')
+              .setMinValues(1)
+              .setMaxValues(1)
+          )
+        ],
         flags: MessageFlags.Ephemeral
       });
-
-      return interaction.channel.send(
-        '💳 **CONSULTAR SALDO**\n\n' +
-        'Mencione o membro que deseja consultar.'
-      );
     }
 
-              
+
+     
+    if (
+      interaction.isUserSelectMenu() &&
+      interaction.customId === 'snoweco_selecionar_membro'
+    ) {
+      if (interaction.user.id !== OWNER_ID) {
+        return interaction.reply({
+          content: 'Você não tem autorização para consultar saldos.',
+          flags: MessageFlags.Ephemeral
+        });
+      }
+
+      try {
+        const userId = interaction.values[0];
+        const membro = await interaction.guild.members.fetch(userId);
+        const wallet = await getOrCreateWallet(
+          interaction.guild.id,
+          userId
+        );
+
+        const saldo = BigInt(wallet.balance);
+
+        return interaction.update({
+          content:
+            `💳 **SALDO DE ${membro.user.username}**\n\n` +
+            `💰 **Coins:** ${saldo.toLocaleString('pt-BR')}`,
+          components: []
+        });
+
+      } catch (error) {
+        console.error('Erro ao consultar saldo:', error);
+
+        return interaction.update({
+          content: 'Não foi possível consultar o saldo desse membro.',
+          components: []
+        });
+      }
+    }
+      
     // Botões de cargos dos painéis publicados
     if (
       interaction.isButton() &&
