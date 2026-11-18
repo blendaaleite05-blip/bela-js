@@ -356,6 +356,11 @@ function buildEditor(user, session) {
         makeButton('ed_publish', 'Publicar', ButtonStyle.Success)
       )
     )
+        .addActionRowComponents(
+      new ActionRowBuilder().addComponents(
+        makeButton('ed_separator_small', 'Separador pequeno')
+      )
+    )
     .addSeparatorComponents(
       new SeparatorBuilder()
         .setDivider(true)
@@ -1038,7 +1043,10 @@ if (id === 'ed_publish') {
         addElement(session, { type: 'separator' });
         return refreshEditor(interaction, session);
       }
-
+      if (id === 'ed_separator_small') {
+        addElement(session, { type: 'separator_small' });
+        return refreshEditor(interaction, session);
+                             }
       // Selecionar elemento
       if (id === 'ed_select') {
         session.selected = Number(interaction.values[0]);
