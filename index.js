@@ -262,20 +262,23 @@ function buildPublishedContainer(session) {
           )
       );
 
-    } else if (
-  item.type === 'separator' ||
-  item.type === 'separator_small'
-) {
+    
+    } else if (item.type === 'separator') {
 
-  container.addSeparatorComponents(
-    new SeparatorBuilder()
-      .setDivider(true)
-      .setSpacing(
-        item.type === 'separator_small'
-          ? SeparatorSpacingSize.Small
-          : SeparatorSpacingSize.Large
-      )
-  );
+      container.addSeparatorComponents(
+        new SeparatorBuilder()
+          .setDivider(true)
+          .setSpacing(SeparatorSpacingSize.Large)
+      );
+
+    } else if (item.type === 'separator_small') {
+
+      container.addTextDisplayComponents(
+        new TextDisplayBuilder().setContent('────────')
+      );
+
+    } else if (item.type === 'role') {
+
 
     } else if (item.type === 'role') {
 
