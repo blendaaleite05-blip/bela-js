@@ -201,6 +201,7 @@ function addElement(session, element) {
     banner: 1,
     thumbnail: 3,
     separator: 1,
+    separator_small: 1,
     role: 3
   };
 
@@ -261,13 +262,20 @@ function buildPublishedContainer(session) {
           )
       );
 
-    } else if (item.type === 'separator') {
+    } else if (
+  item.type === 'separator' ||
+  item.type === 'separator_small'
+) {
 
-      container.addSeparatorComponents(
-        new SeparatorBuilder()
-          .setDivider(true)
-          .setSpacing(SeparatorSpacingSize.Large)
-      );
+  container.addSeparatorComponents(
+    new SeparatorBuilder()
+      .setDivider(true)
+      .setSpacing(
+        item.type === 'separator_small'
+          ? SeparatorSpacingSize.Small
+          : SeparatorSpacingSize.Large
+      )
+  );
 
     } else if (item.type === 'role') {
 
